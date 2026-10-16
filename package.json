@@ -1,6 +1,6 @@
 {
   "name": "@reminix/sdk",
-  "version": "1.0.0-rc.3",
+  "version": "1.0.0-rc.4",
   "description": "Reminix API client",
   "type": "module",
   "exports": {
@@ -11,7 +11,8 @@
   },
   "files": [
     "dist",
-    "NOTICE"
+    "NOTICE",
+    "CHANGELOG.md"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
