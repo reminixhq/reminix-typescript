@@ -83,7 +83,7 @@ Every API operation is a typed method, named like its CLI command:
 ## Links
 
 - [Website](https://reminix.com)
-- [TypeScript SDK guide](https://reminix.com/docs/sdk/)
+- [TypeScript SDK guide](https://reminix.com/docs/typescript/)
 - [API reference](https://reminix.com/docs/reference/)
 - [Changelog](https://github.com/reminixhq/reminix-typescript/blob/main/CHANGELOG.md)
 - [Discord](https://reminix.com/discord)

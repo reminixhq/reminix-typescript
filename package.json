@@ -1,6 +1,6 @@
 {
   "name": "@reminix/sdk",
-  "version": "1.0.0-rc.4",
+  "version": "1.0.0-rc.5",
   "description": "Reminix API client",
   "type": "module",
   "exports": {
@@ -28,7 +28,7 @@
     "vitest": "4.1.11"
   },
   "license": "Apache-2.0",
-  "homepage": "https://reminix.com/docs/sdk/",
+  "homepage": "https://reminix.com/docs/typescript/",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/reminixhq/reminix-typescript.git"
