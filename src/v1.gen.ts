@@ -441,7 +441,7 @@ export interface paths {
         put?: never;
         /**
          * Upload a version
-         * @description Uploads a new DRAFT version: the script's folder (a .tar.gz, base64 — the CLI makes it), the command that runs it and the JSON Schema of its inputs. Leave the command out and it is worked out from the folder: pyproject.toml's one script, package.json's bin, start or main, or the folder's one .py, .js, .ts or .sh file; leave the schema out and each `{name}` in the command is a text input. Its dependencies (requirements.txt, pyproject.toml, package.json) are installed now, once; a failed install answers 400 with what it printed. Runs keep using the published version until this one is published.
+         * @description Uploads a new DRAFT version: the script's folder (a .tar.gz, base64 — the CLI makes it), the command that runs it and the JSON Schema of its inputs. Leave the command out and it is worked out from the folder: pyproject.toml's one script, package.json's bin, start or main, or the folder's one .py, .js, .ts or .sh file; leave the schema out and each `{name}` in the command is a text input. Its dependencies (requirements.txt, pyproject.toml, package.json) are installed now, once; a failed install answers 400 with what it printed. Leave the readme out and the folder's README.md is used. Runs keep using the published version until this one is published — or pass `publish: true` (and `create: true` for a new script) to publish in one call.
          */
         post: operations["scriptVersions.create"];
         delete?: never;
@@ -1185,6 +1185,7 @@ export interface components {
              * @example production
              */
             environment: string;
+            /** @description Why it didn't succeed: a failed run's last lines of standard error, or why a cancelled run was cancelled ("The approval was denied"). Null when it succeeded or is still going. */
             error: string | null;
             /** @description Its files: those given as file inputs (`in`) and those it wrote to /outputs (`out`), each with a download link. On one run, not in lists. */
             files?: components["schemas"]["File"][];
@@ -1214,7 +1215,7 @@ export interface components {
                 userId: string | null;
             };
             /**
-             * @description `awaiting_approval`: held for a person (see `approvalRequestId`); `cancelled`: the approval was denied or expired.
+             * @description `awaiting_approval`: held for a person (see `approvalRequestId`); `cancelled`: it won't run or was stopped, and `error` says why (the approval was denied or expired, a person cancelled a long run, its environment was deleted).
              * @enum {string}
              */
             status: "awaiting_approval" | "running" | "succeeded" | "failed" | "cancelled";
@@ -1512,6 +1513,10 @@ export interface components {
              * @example python unlock.py {email}
              */
             command?: string;
+            /** @description Create the script when there is none with this slug — named `name`, else from the folder (pyproject.toml, package.json), else its slug. Default: false (an unknown slug is a 404, so a typo never makes a new script). */
+            create?: boolean;
+            /** @description When given, becomes the script's description, as `name`. */
+            description?: string;
             /** @description Secrets the script reads as environment variables (only those whose owner allowed it). */
             env?: string[];
             /**
@@ -1525,10 +1530,17 @@ export interface components {
             inputSchema?: {
                 [key: string]: unknown;
             };
+            /**
+             * @description When given, becomes the script's name (on creation, and on every later upload that sends it).
+             * @example Unlock account
+             */
+            name?: string;
             /** @description A JSON Schema document. */
             outputSchema?: {
                 [key: string]: unknown;
             } | null;
+            /** @description Publish this version too, in the same call — exactly as "Publish a version": when the workspace needs a person's approval, the answer carries `approval` and it is published once approved. */
+            publish?: boolean;
             /** @description README.md (markdown), shown on the script's page while this version is published. */
             readme?: string | null;
             /** @description Secrets to attach to requests to some of `hosts`, by name. In each environment, the secret's value must allow at least one of them. */
@@ -1553,6 +1565,13 @@ export interface components {
              * @enum {string}
              */
             via?: "cli" | "api" | "app";
+        };
+        ScriptVersionUploaded: components["schemas"]["ScriptVersion"] & {
+            /** @description With `publish: true`, when publishing waits for a person: the request to approve. The version is published once approved. */
+            approval?: {
+                approveUrl: string;
+                id: string;
+            };
         };
         Secret: {
             /** @description Whether a script may read it as an environment variable instead of having it attached to requests. */
@@ -4102,13 +4121,13 @@ export interface operations {
             };
         };
         responses: {
-            /** @description The new draft version. */
+            /** @description The new version: a draft, or published with `publish: true`. */
             201: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ScriptVersion"];
+                    "application/json": components["schemas"]["ScriptVersionUploaded"];
                 };
             };
             /** @description Invalid request (code: invalid_request). */

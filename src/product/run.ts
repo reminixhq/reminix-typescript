@@ -35,13 +35,17 @@ export type RunOptions = {
 
 export type Run = Schemas["Run"];
 
-/** A run that ended without succeeding: failed, or cancelled (an approval denied or expired). */
+/**
+ * A run that ended without succeeding: failed, or cancelled. The API's
+ * `error` says why (an approval denied or expired, cancelled by a person,
+ * its environment deleted).
+ */
 export class RunError extends Error {
   readonly run: Run;
   constructor(run: Run) {
     super(
       run.status === "cancelled"
-        ? `Run ${run.id} was cancelled: its approval was denied or expired`
+        ? `Run ${run.id} was cancelled: ${run.error ?? "no reason given"}`
         : `Run ${run.id} failed: ${run.error ?? "no error message"}`,
     );
     this.name = "RunError";
