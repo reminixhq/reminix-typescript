@@ -32,7 +32,7 @@ export function resources(client: RawClient) {
   call<Output<"/files/{fileId}", "get">>(client, {"method":"get","path":"/files/{fileId}","query":[],"hasBody":false}, { "fileId": fileId }, undefined, options),
       list: /** List files */
 (input?: Input<"/files", "get">, options?: RequestOptions) =>
-  call<Output<"/files", "get">>(client, {"method":"get","path":"/files","query":["limit","cursor","script","origin","q"],"hasBody":false}, {  }, input, options),
+  call<Output<"/files", "get">>(client, {"method":"get","path":"/files","query":["limit","cursor","before","script","origin","name"],"hasBody":false}, {  }, input, options),
       upload: /** Upload a file */
 (content: Content, input: Input<"/files", "post">, options?: RequestOptions) =>
   call<Output<"/files", "post">>(client, {"method":"post","path":"/files","query":["name"],"hasBody":false,"rawBody":"application/octet-stream"}, {  }, input, options, content),
@@ -49,7 +49,7 @@ export function resources(client: RawClient) {
   call<Output<"/runs/{runId}", "get">>(client, {"method":"get","path":"/runs/{runId}","query":[],"hasBody":false}, { "runId": runId }, undefined, options),
       list: /** List runs */
 (input?: Input<"/runs", "get">, options?: RequestOptions) =>
-  call<Output<"/runs", "get">>(client, {"method":"get","path":"/runs","query":["limit","cursor","script"],"hasBody":false}, {  }, input, options),
+  call<Output<"/runs", "get">>(client, {"method":"get","path":"/runs","query":["limit","cursor","before","script","status"],"hasBody":false}, {  }, input, options),
       log: /** Get a run's log */
 (runId: string | number, options?: RequestOptions) =>
   call<Output<"/runs/{runId}/log", "get">>(client, {"method":"get","path":"/runs/{runId}/log","query":[],"hasBody":false}, { "runId": runId }, undefined, options),
@@ -168,7 +168,7 @@ export function resources(client: RawClient) {
       auditEvents: {
         list: /** List workspace audit events */
 (input?: Input<"/workspace/audit-events", "get">, options?: RequestOptions) =>
-  call<Output<"/workspace/audit-events", "get">>(client, {"method":"get","path":"/workspace/audit-events","query":["limit","cursor"],"hasBody":false}, {  }, input, options),
+  call<Output<"/workspace/audit-events", "get">>(client, {"method":"get","path":"/workspace/audit-events","query":["limit","cursor","before","action","actor"],"hasBody":false}, {  }, input, options),
       },
       eventTypes: {
         list: /** List event types */
@@ -199,7 +199,7 @@ export function resources(client: RawClient) {
       webhookDeliveries: {
         list: /** List an endpoint's deliveries */
 (endpointId: string | number, input?: Input<"/workspace/webhook-endpoints/{endpointId}/deliveries", "get">, options?: RequestOptions) =>
-  call<Output<"/workspace/webhook-endpoints/{endpointId}/deliveries", "get">>(client, {"method":"get","path":"/workspace/webhook-endpoints/{endpointId}/deliveries","query":["limit","cursor"],"hasBody":false}, { "endpointId": endpointId }, input, options),
+  call<Output<"/workspace/webhook-endpoints/{endpointId}/deliveries", "get">>(client, {"method":"get","path":"/workspace/webhook-endpoints/{endpointId}/deliveries","query":["limit","cursor","before","status"],"hasBody":false}, { "endpointId": endpointId }, input, options),
         redeliver: /** Redeliver an event */
 (endpointId: string | number, deliveryId: string | number, options?: RequestOptions) =>
   call<Output<"/workspace/webhook-endpoints/{endpointId}/deliveries/{deliveryId}/redeliver", "post">>(client, {"method":"post","path":"/workspace/webhook-endpoints/{endpointId}/deliveries/{deliveryId}/redeliver","query":[],"hasBody":false}, { "endpointId": endpointId, "deliveryId": deliveryId }, undefined, options),

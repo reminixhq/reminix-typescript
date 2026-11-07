@@ -10,7 +10,8 @@ Reminix lets your whole team, your software and your agents run your team's scri
 npm install @reminix/sdk
 ```
 
-Set `REMINIX_API_KEY` to a key from **API keys** in the app.
+Set `REMINIX_API_KEY` to a key from **Settings → Developers** in the app.
+To pass the key yourself, use `createClient({ apiKey: key })`.
 
 ## Publish a script
 

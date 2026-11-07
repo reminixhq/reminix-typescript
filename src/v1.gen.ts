@@ -63,7 +63,7 @@ export interface paths {
         };
         /**
          * List files
-         * @description Lists the files that runs saved, newest first, across the scripts you can see. A file stays in the list until it expires. Pass `?script=<slug>` for one script's files. Pass `?origin=input` for the files runs took as inputs, or `?origin=all` for both. Pass `?q=` to match file names. Each file comes with a download link that works for an hour. Paginate with the opaque `nextCursor` token.
+         * @description Lists the files that runs saved, newest first, across the scripts you can see. A file stays in the list until it expires. Pass `?script=<slug>` for one script's files. Pass `?origin=input` for the files runs took as inputs, or `?origin=all` for both. Pass `?name=` to match file names. Each file comes with a download link that works for an hour. Pass `?before=` to start from a moment. Paginate with the opaque `nextCursor` token.
          */
         get: operations["files.list"];
         put?: never;
@@ -127,7 +127,7 @@ export interface paths {
         };
         /**
          * List runs
-         * @description Lists the workspace's runs, newest first. Pass `?script=<slug>` for one script's runs. Paginate with the opaque `nextCursor` token.
+         * @description Lists the workspace's runs, newest first. Pass `?script=<slug>` for one script's runs and `?status=` for runs in one state. Pass `?before=` to start from a moment. Paginate with the opaque `nextCursor` token.
          */
         get: operations["runs.list"];
         put?: never;
@@ -703,7 +703,7 @@ export interface paths {
         };
         /**
          * List workspace audit events
-         * @description Lists the workspace's audit events, newest first. Paginate with the opaque `nextCursor` token. `limit` takes 1 to 100 and defaults to 25. With a personal access token, only workspace owners can call this, as with the audit page in the app. A workspace API key always can, because it acts as the workspace itself.
+         * @description Lists the workspace's audit events, newest first. Paginate with the opaque `nextCursor` token. `limit` takes 1 to 100 and defaults to 25. `before` starts from a moment. `action` keeps one kind of event, and `actor` what one person, key or token did. With a personal access token, only workspace owners can call this, as with the audit page in the app. A workspace API key always can, because it acts as the workspace itself.
          */
         get: operations["workspace.auditEvents.list"];
         put?: never;
@@ -875,7 +875,7 @@ export interface paths {
         };
         /**
          * List an endpoint's deliveries
-         * @description Lists one endpoint's delivery history, newest first. Each entry shows the event's status, attempts and last HTTP status. Payloads aren't included. We keep the history for 30 days. Paginate with the opaque `nextCursor`. With a personal access token, only workspace owners can call this. A workspace API key with this scope can.
+         * @description Lists one endpoint's delivery history, newest first. Each entry shows the event's status, attempts and last HTTP status. Payloads aren't included. We keep the history for 30 days. Paginate with the opaque `nextCursor`. `before` starts from a moment, and `status` keeps one kind of delivery. With a personal access token, only workspace owners can call this. A workspace API key with this scope can.
          */
         get: operations["workspace.webhookDeliveries.list"];
         put?: never;
@@ -1016,6 +1016,14 @@ export interface components {
         AuditEvent: {
             /** @example workspace.member_invited */
             action: string;
+            /** @description Who acted. */
+            actor: {
+                /**
+                 * @description The person who acted, for a `user` actor. Null for anyone else. Pass `user:` and this id as `actor` to see only what they did.
+                 * @example usr_k3TAiF2ZP5sQ
+                 */
+                id: string | null;
+            };
             /**
              * @description Who is accountable: `user`, `staff`, `system` or `api_key`.
              * @example user
@@ -1025,6 +1033,11 @@ export interface components {
             createdAt: string;
             /** @description The API credential the action came through, with the name it had at the time. Null for actions taken in the app. */
             credential: {
+                /**
+                 * @description The key or token. Pass `credential:` and this id as `actor` to see only what it did.
+                 * @example key_8a1bQ2
+                 */
+                id: string | null;
                 /** @example ci */
                 name: string | null;
                 /**
@@ -2806,14 +2819,16 @@ export interface operations {
     "files.list": {
         parameters: {
             query?: {
+                /** @description Start from this moment: items older than it, newest first. Ignored with `cursor`, which already says where to go on. */
+                before?: string;
                 /** @description Opaque token from a previous page's nextCursor. */
                 cursor?: string;
                 /** @description Items per page, 1–100 (default 25). */
                 limit?: number;
+                /** @description Only files whose name contains this text. */
+                name?: string;
                 /** @description Which files to list: `saved` for files runs saved (the default), `input` for files runs took as inputs, or `all` for both. */
                 origin?: "input" | "saved" | "all";
-                /** @description Only files whose name contains this text. */
-                q?: string;
                 /** @description Only files from this script's runs, by its slug. */
                 script?: string;
             };
@@ -3099,12 +3114,16 @@ export interface operations {
     "runs.list": {
         parameters: {
             query?: {
+                /** @description Start from this moment: items older than it, newest first. Ignored with `cursor`, which already says where to go on. */
+                before?: string;
                 /** @description Opaque token from a previous page's nextCursor. */
                 cursor?: string;
                 /** @description Items per page, 1–100 (default 25). */
                 limit?: number;
                 /** @description Only this script's runs, by its slug. */
                 script?: string;
+                /** @description Only runs in this state. */
+                status?: "awaiting_approval" | "running" | "succeeded" | "failed" | "cancelled";
             };
             header?: {
                 /** @description The environment the request acts in. Without it, the request uses the product's default environment. An API key bound to an environment always acts in that environment, and naming another one fails with 403. An unknown environment fails with 400. */
@@ -5709,6 +5728,12 @@ export interface operations {
     "workspace.auditEvents.list": {
         parameters: {
             query?: {
+                /** @description Only events of this action. */
+                action?: string;
+                /** @description Only what one person did (`user:` and the item's `actor.id`), or one key or token (`credential:` and the item's `credential.id`). */
+                actor?: string;
+                /** @description Start from this moment: items older than it, newest first. Ignored with `cursor`, which already says where to go on. */
+                before?: string;
                 /** @description Opaque token from a previous page's nextCursor. */
                 cursor?: string;
                 /** @description Items per page, 1–100 (default 25). */
@@ -6431,10 +6456,14 @@ export interface operations {
     "workspace.webhookDeliveries.list": {
         parameters: {
             query?: {
+                /** @description Start from this moment: items older than it, newest first. Ignored with `cursor`, which already says where to go on. */
+                before?: string;
                 /** @description Opaque token from a previous page's nextCursor. */
                 cursor?: string;
                 /** @description Items per page, 1–100 (default 25). */
                 limit?: number;
+                /** @description Only deliveries with this status. */
+                status?: "pending" | "delivered" | "failed";
             };
             header?: {
                 /** @description The environment the request acts in. Without it, the request uses the product's default environment. An API key bound to an environment always acts in that environment, and naming another one fails with 403. An unknown environment fails with 400. */
