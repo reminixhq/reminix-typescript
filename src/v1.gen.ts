@@ -392,8 +392,8 @@ export interface paths {
         get: operations["triggers.list"];
         put?: never;
         /**
-         * Run a script on an event
-         * @description Starts a run of the script, as you, when an event of `eventType` happens in the workspace and its data matches `filter`. GET /v1/workspace/event-types lists the event types. The run starts within about a minute of the event. A chain of triggered runs stops after 3. If every run of the script, or every run in the environment, needs approval, only workspace owners and admins can create a trigger.
+         * Run a script when something happens
+         * @description Creates a trigger that starts a run of the script, as you. With the type `event`, a run starts when an event of `event` happens in the workspace and its data matches `filter`. GET /v1/workspace/event-types lists the event types. The run starts within about a minute of the event, and a chain of triggered runs stops after 3. With the type `webhook`, a run starts when someone calls the trigger's URL with its secret. The response carries the URL and the secret once. Only the script's owner, or a workspace owner or admin, can create a webhook trigger, and its runs wait for approval where an agent's would. For an event trigger, if every run of the script or of the environment needs approval, only workspace owners and admins can create it.
          */
         post: operations["triggers.create"];
         delete?: never;
@@ -414,16 +414,56 @@ export interface paths {
         post?: never;
         /**
          * Delete a trigger
-         * @description Deletes a trigger. The trigger's creator, a workspace owner or admin, or a workspace API key can delete it.
+         * @description Deletes a trigger. The creator of an event trigger, a webhook trigger's script owner, a workspace owner or admin, or a workspace API key can delete it.
          */
         delete: operations["triggers.delete"];
         options?: never;
         head?: never;
         /**
          * Change a trigger
-         * @description Changes a trigger's name, filter, inputs or environment, or whether it's enabled. The trigger's creator, a workspace owner or admin, or a workspace API key can change it.
+         * @description Changes a trigger's name, inputs or environment, or whether it's enabled. It also changes an event trigger's filter, or a webhook trigger's input mode, locked inputs and signature check. Changing the signature check needs its signing secret again. The creator of an event trigger, a webhook trigger's script owner, a workspace owner or admin, or a workspace API key can change it.
          */
         patch: operations["triggers.update"];
+        trace?: never;
+    };
+    "/scripts/{slug}/triggers/{triggerId}/calls": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List a webhook trigger's calls
+         * @description Returns a webhook trigger's last 20 calls, newest first: when each came, whether it started a run or repeated an earlier call, why Reminix refused it, and the run. Reminix keeps calls for 30 days.
+         */
+        get: operations["triggers.calls"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/scripts/{slug}/triggers/{triggerId}/rotate-secret": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Rotate a webhook trigger's secret
+         * @description Gives a webhook trigger a new secret and returns its new URL, this once. The old URL stops working at once. If Reminix disabled the trigger, such as after repeated refused calls, rotating enables it again. The script's owner, a workspace owner or admin, or a workspace API key can rotate it.
+         */
+        post: operations["triggers.rotateSecret"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/scripts/{slug}/versions": {
@@ -461,7 +501,7 @@ export interface paths {
         put?: never;
         /**
          * Publish a version
-         * @description Makes a version the one every run of the script uses, however the run starts. Publishing an older version again rolls the script back. The script owner or a workspace owner or admin can publish. An agent's publish becomes a request that a person approves, and the call returns 202. If the workspace requires a second person to publish, everyone's publish becomes a request like this.
+         * @description Makes a version the one every run of the script uses, however the run starts. Publishing an older version again rolls the script back. The script owner or a workspace owner or admin can publish. When an agent connected through MCP publishes, it becomes a request that a person approves, and the call returns 202. If the workspace requires a second person to publish, everyone's publish becomes a request like this.
          */
         post: operations["scriptVersions.publish"];
         delete?: never;
@@ -1152,6 +1192,44 @@ export interface components {
                 requestId?: string;
             };
         };
+        EventTriggerInput: {
+            /** @description The environment the runs use. The default is the request's X-Environment, or else the workspace's default environment. */
+            environment?: string;
+            /**
+             * @description The event that starts a run. It can be any webhook event type, such as `run.failed`.
+             * @example run.failed
+             */
+            event: string;
+            /**
+             * @description Event data fields, as dotted paths, that must equal these values.
+             * @example {
+             *       "script.slug": "nightly-sync"
+             *     }
+             */
+            filter?: {
+                [key: string]: unknown;
+            };
+            /**
+             * @description The script's inputs for each run, by name. A value like "{{event.data.<path>}}" takes its value from the event.
+             * @example {
+             *       "runId": "{{event.data.runId}}",
+             *       "error": "{{event.data.error}}"
+             *     }
+             */
+            inputs?: {
+                [key: string]: unknown;
+            };
+            /**
+             * @description A name for the trigger, shown in the app.
+             * @example Nightly sync failed
+             */
+            name: string;
+            /**
+             * @description A workspace event starts the runs. (enum property replaced by openapi-typescript)
+             * @enum {string}
+             */
+            type: "event";
+        };
         File: {
             /** @example 2026-10-01T09:14:12.000Z */
             createdAt: string;
@@ -1337,6 +1415,11 @@ export interface components {
              */
             approvalRequestId: string | null;
             /**
+             * @description The name of the schedule or trigger that started the run, while it exists.
+             * @example null
+             */
+            automationName: string | null;
+            /**
              * @description How long the run took, in milliseconds.
              * @example 1850
              */
@@ -1424,11 +1507,11 @@ export interface components {
              */
             version: number;
             /**
-             * @description Where the run came from: the app, the API, the CLI, an agent connected through MCP, a schedule or a trigger.
+             * @description Where the run came from: the app, the API, the CLI, an agent connected through MCP, a schedule, an event trigger or a webhook trigger.
              * @example api
              * @enum {string}
              */
-            via: "app" | "api" | "cli" | "agent" | "schedule" | "trigger";
+            via: "app" | "api" | "cli" | "agent" | "schedule" | "trigger" | "webhook";
         };
         /**
          * @example {
@@ -1710,7 +1793,7 @@ export interface components {
                         slug: string;
                     };
                     trigger: {
-                        eventType: string;
+                        event: string;
                         id: string;
                         name: string;
                     };
@@ -1721,9 +1804,11 @@ export interface components {
                  */
                 triggers: {
                     enabled: boolean;
-                    eventType: string;
+                    event: string | null;
                     id: string;
                     name: string;
+                    /** @enum {string} */
+                    type: "event" | "webhook";
                 }[];
             };
         };
@@ -2226,21 +2311,30 @@ export interface components {
              * @example production
              */
             environment: string;
-            /** @example run.failed */
-            eventType: string;
             /**
-             * @description Event data fields, as dotted paths, that must equal these values.
+             * @description An event trigger's event type. Null for a webhook trigger.
+             * @example run.failed
+             */
+            event: string | null;
+            /**
+             * @description An event trigger's filter: event data fields, as dotted paths, that must equal these values. Null for a webhook trigger.
              * @example {
              *       "script.slug": "nightly-sync"
              *     }
              */
             filter: {
                 [key: string]: unknown;
-            };
+            } | null;
             /** @example trg_6e4a… */
             id: string;
             /**
-             * @description The inputs for each run. A value like "{{event.data.<path>}}" takes its value from the event.
+             * @description A webhook trigger's input mode: `fixed` (the saved inputs), `call` (the body's fields) or `request` (the whole request as the `request` input). Null for an event trigger.
+             * @example null
+             * @enum {string|null}
+             */
+            inputMode: "fixed" | "call" | "request" | null;
+            /**
+             * @description The inputs for each run. In an event trigger, a value like "{{event.data.<path>}}" takes its value from the event.
              * @example {
              *       "runId": "{{event.data.runId}}",
              *       "error": "{{event.data.error}}"
@@ -2251,42 +2345,46 @@ export interface components {
             };
             /** @example 2026-10-05T02:10:00.000Z */
             lastRunAt: string | null;
+            /**
+             * @description A webhook trigger's saved inputs that a call can't change. Null for an event trigger.
+             * @example null
+             */
+            lockedInputs: string[] | null;
             /** @example Nightly sync failed */
             name: string;
+            /**
+             * @description The signature a webhook trigger checks on each call. Null for an event trigger.
+             * @example null
+             * @enum {string|null}
+             */
+            signature: "none" | "stripe" | "github" | null;
+            /**
+             * @description `event`: a workspace event starts a run. `webhook`: a call to the trigger's URL starts a run.
+             * @example event
+             * @enum {string}
+             */
+            type: "event" | "webhook";
         };
-        TriggerInput: {
-            /** @description The environment the runs use. The default is the request's X-Environment, or else the workspace's default environment. */
-            environment?: string;
+        TriggerCall: {
+            /** @example tcl_91b2… */
+            id: string;
             /**
-             * @description The event that starts a run. It can be any webhook event type, such as `run.failed`.
-             * @example run.failed
+             * @description Why the call was refused.
+             * @example null
              */
-            eventType: string;
+            reason: string | null;
+            /** @example 2026-11-12T09:12:04.000Z */
+            receivedAt: string;
             /**
-             * @description Event data fields, as dotted paths, that must equal these values.
-             * @example {
-             *       "script.slug": "nightly-sync"
-             *     }
+             * @description `started` a run, a `duplicate` of a call already answered, or `refused`.
+             * @example started
+             * @enum {string}
              */
-            filter?: {
-                [key: string]: unknown;
-            };
-            /**
-             * @description The script's inputs for each run, by name. A value like "{{event.data.<path>}}" takes its value from the event.
-             * @example {
-             *       "runId": "{{event.data.runId}}",
-             *       "error": "{{event.data.error}}"
-             *     }
-             */
-            inputs?: {
-                [key: string]: unknown;
-            };
-            /**
-             * @description A name for the trigger, shown in the app.
-             * @example Nightly sync failed
-             */
-            name: string;
+            result: "started" | "duplicate" | "refused";
+            /** @example run_2a6f… */
+            runId: string | null;
         };
+        TriggerInput: components["schemas"]["EventTriggerInput"] | components["schemas"]["WebhookTriggerInput"];
         TriggerPatch: {
             /** @description Whether the trigger starts runs. With `false`, it's disabled. */
             enabled?: boolean;
@@ -2302,6 +2400,11 @@ export interface components {
                 [key: string]: unknown;
             };
             /**
+             * @description A webhook trigger's input mode.
+             * @enum {string}
+             */
+            inputMode?: "fixed" | "call" | "request";
+            /**
              * @description The script's inputs for each run, by name. A value like "{{event.data.<path>}}" takes its value from the event.
              * @example {
              *       "runId": "{{event.data.runId}}",
@@ -2311,8 +2414,29 @@ export interface components {
             inputs?: {
                 [key: string]: unknown;
             };
+            /** @description A webhook trigger's saved inputs that a call can't change. */
+            lockedInputs?: string[];
             /** @description A name for the trigger, shown in the app. */
             name?: string;
+            /**
+             * @description A webhook trigger's signature check.
+             * @enum {string}
+             */
+            signature?: "none" | "stripe" | "github";
+            /** @description A new signing secret, with `signature` `stripe` or `github`. */
+            signingSecret?: string;
+        };
+        TriggerWithSecret: components["schemas"]["Trigger"] & {
+            /**
+             * @description A webhook trigger's secret, returned only when it is created or rotated. Send it as `Authorization: Bearer <secret>`, or use `url`.
+             * @example q8Vd3…
+             */
+            secret?: string;
+            /**
+             * @description A webhook trigger's URL, with its secret, returned only when it is created or rotated.
+             * @example https://api.reminix.com/webhooks/trg_6e4a…/q8Vd3…
+             */
+            url?: string;
         };
         UserMe: {
             /** @example casey@example.com */
@@ -2416,6 +2540,53 @@ export interface components {
             items: components["schemas"]["WebhookEndpoint"][];
             /** @description Pass as ?cursor= to fetch the next page. */
             nextCursor: string | null;
+        };
+        WebhookTriggerInput: {
+            /** @description The environment the runs use. The default is the request's X-Environment, or else the workspace's default environment. */
+            environment?: string;
+            /**
+             * @description Where each run's inputs come from. `fixed`, the default, uses the saved `inputs` and ignores the body. `call` takes the body's fields that match the script's inputs. `request` gives the script the whole request as its `request` input.
+             * @example request
+             * @enum {string}
+             */
+            inputMode?: "fixed" | "call" | "request";
+            /**
+             * @description The saved inputs for each run, by name.
+             * @example {
+             *       "account": "acme"
+             *     }
+             */
+            inputs?: {
+                [key: string]: unknown;
+            };
+            /**
+             * @description Saved inputs that a call can't change.
+             * @example [
+             *       "account"
+             *     ]
+             */
+            lockedInputs?: string[];
+            /**
+             * @description A name for the trigger, shown in the app.
+             * @example Stripe payment failed
+             */
+            name: string;
+            /**
+             * @description Check each call's signature: `stripe` (Stripe-Signature) or `github` (X-Hub-Signature-256). The default is `none`.
+             * @example stripe
+             * @enum {string}
+             */
+            signature?: "none" | "stripe" | "github";
+            /**
+             * @description The provider's signing secret, with `signature` `stripe` or `github`. Reminix stores it encrypted and never returns it.
+             * @example whsec_…
+             */
+            signingSecret?: string;
+            /**
+             * @description A call to the trigger's URL starts the runs. (enum property replaced by openapi-typescript)
+             * @enum {string}
+             */
+            type: "webhook";
         };
         Workspace: {
             /** @example 9418b705-3720-48ca-b2bf-f726d1456684 */
@@ -4445,13 +4616,13 @@ export interface operations {
             };
         };
         responses: {
-            /** @description The trigger. */
+            /** @description The trigger. A webhook trigger carries its `url` and `secret`, this once. */
             201: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Trigger"];
+                    "application/json": components["schemas"]["TriggerWithSecret"];
                 };
             };
             /** @description Invalid request (code: invalid_request). */
@@ -4600,6 +4771,154 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Trigger"];
+                };
+            };
+            /** @description Invalid request (code: invalid_request). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The API key or personal access token is missing, malformed or invalid (code: unauthorized). A revoked or expired one gets the same error. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The credential can't make this request (code: forbidden). An API key or token without this route's scope gets this error. So does a personal access token that lacks the workspace role the route requires, or that can't act in the named workspace. A token can't act in a workspace whose slug is unknown, that its user isn't a member of, or that its scopes exclude. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description No such script, schedule or trigger in this workspace (code: not_found). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests (code: rate_limited). The limit is 100 requests a minute for each API key, personal access token or agent sign-in. Retry after the number of seconds in the Retry-After header. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    "triggers.calls": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description The environment the request acts in. Without it, the request uses the product's default environment. An API key bound to an environment always acts in that environment, and naming another one fails with 403. An unknown environment fails with 400. */
+                "x-environment"?: string;
+                /** @description The workspace slug. A personal access token must send it, or the request fails with 400. API keys ignore it. */
+                "x-workspace"?: string;
+            };
+            path: {
+                slug: string;
+                triggerId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The calls. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["TriggerCall"][];
+                    };
+                };
+            };
+            /** @description Invalid request (code: invalid_request). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The API key or personal access token is missing, malformed or invalid (code: unauthorized). A revoked or expired one gets the same error. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The credential can't make this request (code: forbidden). An API key or token without this route's scope gets this error. So does a personal access token that lacks the workspace role the route requires, or that can't act in the named workspace. A token can't act in a workspace whose slug is unknown, that its user isn't a member of, or that its scopes exclude. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description No such script, schedule or trigger in this workspace (code: not_found). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests (code: rate_limited). The limit is 100 requests a minute for each API key, personal access token or agent sign-in. Retry after the number of seconds in the Retry-After header. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    "triggers.rotateSecret": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description The environment the request acts in. Without it, the request uses the product's default environment. An API key bound to an environment always acts in that environment, and naming another one fails with 403. An unknown environment fails with 400. */
+                "x-environment"?: string;
+                /** @description The workspace slug. A personal access token must send it, or the request fails with 400. API keys ignore it. */
+                "x-workspace"?: string;
+            };
+            path: {
+                slug: string;
+                triggerId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The trigger, with its new `url` and `secret`. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TriggerWithSecret"];
                 };
             };
             /** @description Invalid request (code: invalid_request). */
@@ -4834,7 +5153,7 @@ export interface operations {
                     "application/json": components["schemas"]["Script"];
                 };
             };
-            /** @description The publish is waiting for a person's approval. An agent's publish always waits, and so does everyone's when the workspace requires a second person. Reminix publishes the version once a person approves it. */
+            /** @description The publish is waiting for a person's approval. An agent's publish through MCP always waits, and so does everyone's when the workspace requires a second person. Reminix publishes the version once a person approves it. */
             202: {
                 headers: {
                     [name: string]: unknown;

@@ -127,7 +127,10 @@ export function resources(client: RawClient) {
   call<Output<"/secrets/{name}/values/{environment}", "delete">>(client, {"method":"delete","path":"/secrets/{name}/values/{environment}","query":[],"hasBody":false}, { "name": name, "environment": environment }, undefined, options),
     },
     triggers: {
-      create: /** Run a script on an event */
+      calls: /** List a webhook trigger's calls */
+(slug: string | number, triggerId: string | number, options?: RequestOptions) =>
+  call<Output<"/scripts/{slug}/triggers/{triggerId}/calls", "get">>(client, {"method":"get","path":"/scripts/{slug}/triggers/{triggerId}/calls","query":[],"hasBody":false}, { "slug": slug, "triggerId": triggerId }, undefined, options),
+      create: /** Run a script when something happens */
 (slug: string | number, input: Input<"/scripts/{slug}/triggers", "post">, options?: RequestOptions) =>
   call<Output<"/scripts/{slug}/triggers", "post">>(client, {"method":"post","path":"/scripts/{slug}/triggers","query":[],"hasBody":true}, { "slug": slug }, input, options),
       delete: /** Delete a trigger */
@@ -136,6 +139,9 @@ export function resources(client: RawClient) {
       list: /** List a script's triggers */
 (slug: string | number, options?: RequestOptions) =>
   call<Output<"/scripts/{slug}/triggers", "get">>(client, {"method":"get","path":"/scripts/{slug}/triggers","query":[],"hasBody":false}, { "slug": slug }, undefined, options),
+      rotateSecret: /** Rotate a webhook trigger's secret */
+(slug: string | number, triggerId: string | number, options?: RequestOptions) =>
+  call<Output<"/scripts/{slug}/triggers/{triggerId}/rotate-secret", "post">>(client, {"method":"post","path":"/scripts/{slug}/triggers/{triggerId}/rotate-secret","query":[],"hasBody":false}, { "slug": slug, "triggerId": triggerId }, undefined, options),
       update: /** Change a trigger */
 (slug: string | number, triggerId: string | number, input?: Input<"/scripts/{slug}/triggers/{triggerId}", "patch">, options?: RequestOptions) =>
   call<Output<"/scripts/{slug}/triggers/{triggerId}", "patch">>(client, {"method":"patch","path":"/scripts/{slug}/triggers/{triggerId}","query":[],"hasBody":true}, { "slug": slug, "triggerId": triggerId }, input, options),
