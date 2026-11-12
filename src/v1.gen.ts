@@ -823,13 +823,13 @@ export interface paths {
         };
         /**
          * List webhook endpoints
-         * @description Lists the workspace's outgoing webhook endpoints, newest first. The list leaves out their signing secrets. A workspace has at most 10 endpoints, so the list is a single page. Its `nextCursor` is null. With a personal access token, only workspace owners can call this. A workspace API key with this scope can.
+         * @description Lists the workspace's outgoing webhook endpoints, newest first. The list leaves out their signing secrets. A workspace has at most 10 endpoints, so the list is a single page. Its `nextCursor` is null. With a personal access token, only the workspace owner can call this. A workspace API key with this scope can.
          */
         get: operations["workspace.webhookEndpoints.list"];
         put?: never;
         /**
          * Add a webhook endpoint
-         * @description Registers an HTTPS URL to receive the workspace's events. Deliveries use the same signature format as Svix. The response includes the endpoint's signing secret (`whsec_…`). You see it only once, so store it to verify deliveries. The API refuses private hosts and hosts without HTTPS. A workspace can have at most 10 endpoints. With a personal access token, only workspace owners can call this. A workspace API key with this scope can.
+         * @description Registers an HTTPS URL to receive the workspace's events. Deliveries use the same signature format as Svix. The response includes the endpoint's signing secret (`whsec_…`). You see it only once, so store it to verify deliveries. The API refuses private hosts and hosts without HTTPS. A workspace can have at most 10 endpoints. With a personal access token, only the workspace owner can call this. A workspace API key with this scope can.
          */
         post: operations["workspace.webhookEndpoints.create"];
         delete?: never;
@@ -847,21 +847,21 @@ export interface paths {
         };
         /**
          * Get a webhook endpoint
-         * @description Returns one endpoint without its signing secret. It shows whether the endpoint is on, its consecutive failures and its last delivery status. With a personal access token, only workspace owners can call this. A workspace API key with this scope can.
+         * @description Returns one endpoint without its signing secret. It shows whether the endpoint is on, its consecutive failures and its last delivery status. With a personal access token, only the workspace owner can call this. A workspace API key with this scope can.
          */
         get: operations["workspace.webhookEndpoints.get"];
         put?: never;
         post?: never;
         /**
          * Remove a webhook endpoint
-         * @description Deletes the endpoint and its signing secret. All deliveries to the endpoint stop. Its delivery history goes with it. With a personal access token, only workspace owners can call this. A workspace API key with this scope can.
+         * @description Deletes the endpoint and its signing secret. All deliveries to the endpoint stop. Its delivery history goes with it. With a personal access token, only the workspace owner can call this. A workspace API key with this scope can.
          */
         delete: operations["workspace.webhookEndpoints.delete"];
         options?: never;
         head?: never;
         /**
          * Update a webhook endpoint
-         * @description Changes an endpoint's URL, description or event types in place. Only the fields you send change. The endpoint keeps its signing secret, so receivers keep verifying deliveries. A new URL must pass the same checks as on create. It must use HTTPS and can't be a private host. With a personal access token, only workspace owners can call this. A workspace API key with this scope can.
+         * @description Changes an endpoint's URL, description or event types in place. Only the fields you send change. The endpoint keeps its signing secret, so receivers keep verifying deliveries. A new URL must pass the same checks as on create. It must use HTTPS and can't be a private host. With a personal access token, only the workspace owner can call this. A workspace API key with this scope can.
          */
         patch: operations["workspace.webhookEndpoints.update"];
         trace?: never;
@@ -875,7 +875,7 @@ export interface paths {
         };
         /**
          * List an endpoint's deliveries
-         * @description Lists one endpoint's delivery history, newest first. Each entry shows the event's status, attempts and last HTTP status. Payloads aren't included. We keep the history for 30 days. Paginate with the opaque `nextCursor`. `before` starts from a moment, and `status` keeps one kind of delivery. With a personal access token, only workspace owners can call this. A workspace API key with this scope can.
+         * @description Lists one endpoint's delivery history, newest first. Each entry shows the event's status, attempts and last HTTP status. Payloads aren't included. We keep the history for 30 days. Paginate with the opaque `nextCursor`. `before` starts from a moment, and `status` keeps one kind of delivery. With a personal access token, only the workspace owner can call this. A workspace API key with this scope can.
          */
         get: operations["workspace.webhookDeliveries.list"];
         put?: never;
@@ -897,7 +897,7 @@ export interface paths {
         put?: never;
         /**
          * Redeliver an event
-         * @description Sends a recorded delivery's event again, as a new delivery. The new delivery gets its own history entry. The event id stays the same, so receivers can deduplicate. Redelivery only works on an enabled endpoint. With a personal access token, only workspace owners can call this. A workspace API key with this scope can.
+         * @description Sends a recorded delivery's event again, as a new delivery. The new delivery gets its own history entry. The event id stays the same, so receivers can deduplicate. Redelivery only works on an enabled endpoint. With a personal access token, only the workspace owner can call this. A workspace API key with this scope can.
          */
         post: operations["workspace.webhookDeliveries.redeliver"];
         delete?: never;
@@ -917,7 +917,7 @@ export interface paths {
         put?: never;
         /**
          * Re-enable a webhook endpoint
-         * @description Resumes deliveries to an endpoint that stopped after repeated failures. The endpoint keeps its signing secret. Its failure count resets. With a personal access token, only workspace owners can call this. A workspace API key with this scope can.
+         * @description Resumes deliveries to an endpoint that stopped after repeated failures. The endpoint keeps its signing secret. Its failure count resets. With a personal access token, only the workspace owner can call this. A workspace API key with this scope can.
          */
         post: operations["workspace.webhookEndpoints.enable"];
         delete?: never;
@@ -937,7 +937,7 @@ export interface paths {
         put?: never;
         /**
          * Send a test event
-         * @description Sends a `ping` event to the endpoint, signed like every delivery. Use it to check that an integration verifies and accepts deliveries. With a personal access token, only workspace owners can call this. A workspace API key with this scope can.
+         * @description Sends a `ping` event to the endpoint, signed like every delivery. Use it to check that an integration verifies and accepts deliveries. With a personal access token, only the workspace owner can call this. A workspace API key with this scope can.
          */
         post: operations["workspace.webhookEndpoints.test"];
         delete?: never;
@@ -1269,6 +1269,11 @@ export interface components {
             /** @example member */
             role: string | null;
             /**
+             * @description The seat type the person will hold on accepting. Null for a guest, or where the product has no seat types.
+             * @example runners
+             */
+            seat: string | null;
+            /**
              * @description The teams the person joins on accepting. Everyone except a guest also joins the default team.
              * @example [
              *       "5cfbfbdc-bd74-4b1b-aacf-cc18a0ab960e"
@@ -1298,6 +1303,11 @@ export interface components {
              * @example member
              */
             role: string;
+            /**
+             * @description The seat type the member holds, where the product has seat types: it decides what they do here. Null for a guest, or where the product has none.
+             * @example publishers
+             */
+            seat: string | null;
             /** @example Vb2KqW8nRx4LmT6pYc9HsJ3dFg7Na1Ue */
             userId: string;
         };
@@ -4751,7 +4761,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The plan's limit is reached, such as Free's 3 authors a month (code: plan_limit_reached). */
+            /** @description The plan's limit is reached, such as Free's 1 publisher a month (code: plan_limit_reached). */
             402: {
                 headers: {
                     [name: string]: unknown;
@@ -4842,7 +4852,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The plan's limit is reached, such as Free's 3 authors a month (code: plan_limit_reached). */
+            /** @description The plan's limit is reached, such as Free's 1 publisher a month (code: plan_limit_reached). */
             402: {
                 headers: {
                     [name: string]: unknown;

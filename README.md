@@ -2,7 +2,7 @@
 
 The Reminix TypeScript SDK runs your team's published scripts from your code: one call starts a run, waits for it however long it takes, handles approvals and files, and gives you the result. Every API operation is a typed method too.
 
-Reminix lets your whole team, your software and your agents run your team's scripts, and the ones AI writes: one publish gives a form, an API and an agent tool, with keys kept out of the code and every run on record.
+Reminix turns your scripts into internal tools. Upload a Python, shell or Node script, and Reminix runs it from a form, the API, the CLI or your AI agents, on a schedule or from a webhook. Keys stay out of the code, and every run is on record.
 
 ## Install
 
@@ -37,8 +37,12 @@ import { createClient } from "@reminix/sdk";
 
 const reminix = createClient(); // reads REMINIX_API_KEY
 
-const run = await reminix.run("monthly-report", { month: "2026-09" });
-console.log(run.output);
+const run = await reminix.run("refund-customer", {
+  orderId: "A-10423",
+  amount: 40,
+  reason: "Charged twice for the same order",
+});
+console.log(run.output); // { order: "A-10423", amount: "$40.00", refund: "re_…" }
 ```
 
 - A run that needs a person's approval waits for them. Pass

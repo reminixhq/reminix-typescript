@@ -1,7 +1,19 @@
 {
   "name": "@reminix/sdk",
-  "version": "1.0.0-rc.8",
+  "version": "1.0.0-rc.9",
   "description": "Reminix API client",
+  "keywords": [
+    "scripts",
+    "internal-tools",
+    "automation",
+    "ai-agents",
+    "mcp",
+    "typescript",
+    "javascript",
+    "nodejs",
+    "sdk",
+    "api-client"
+  ],
   "type": "module",
   "exports": {
     ".": {
