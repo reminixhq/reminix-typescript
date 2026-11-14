@@ -843,7 +843,7 @@ export interface paths {
         };
         /**
          * Get your plan's usage this period
-         * @description Returns what the workspace used this period, with one entry for each thing its plan counts. Each entry has the plan's limit, or null when there is no limit. A period is one month from the workspace's billing date. That date comes from its subscription or, without one, from the day you created the workspace. On an annual plan, the counts still reset every month from the subscription's start.
+         * @description Returns what the workspace used this period, with one entry for each thing its plan counts. Each entry has the plan's limit, or null when there is no limit. Each entry also says where it stands and where we start refusing new use. A period is one month from the workspace's billing date. That date comes from its subscription or, without one, from the day you created the workspace. On an annual plan, the counts still reset every month from the subscription's start.
          */
         get: operations["workspace.usage"];
         put?: never;
@@ -2601,11 +2601,32 @@ export interface components {
                 /** @example webhook_deliveries */
                 id: string;
                 /**
-                 * @description The plan's limit for this period. Null means unlimited.
+                 * @description The count's name, as the app shows it.
+                 * @example Webhook deliveries
+                 */
+                label: string;
+                /**
+                 * @description The limit for this period. Null means unlimited. Zero means your plan includes none.
                  * @example 10000
                  */
                 limit: number | null;
-                /** @example 1240 */
+                /**
+                 * @description Where the count stands. `within` is under the limit. `grace` is past the limit, still running until `stopsAt`. `stopped` means we refuse new use until `periodEnd`. `over` is past the limit of a count we never refuse.
+                 * @example grace
+                 * @enum {string}
+                 */
+                state: "within" | "grace" | "stopped" | "over";
+                /**
+                 * @description Where we start refusing new use until the period resets. It equals `limit` when the count stops at its limit. It is higher when the count keeps running for a while past it. Null means we never refuse it.
+                 * @example 11000
+                 */
+                stopsAt: number | null;
+                /**
+                 * @description The unit of the limit, when the plan names one. Absent otherwise.
+                 * @example per month
+                 */
+                unit?: string;
+                /** @example 10400 */
                 used: number;
             }[];
             /**
@@ -2623,6 +2644,12 @@ export interface components {
              * @example 2026-10-17T14:30:00.000Z
              */
             periodStart: string;
+            /**
+             * @description Where the workspace stands, from its most limited count. The order from worst is `stopped`, `grace`, `over`, then `within`.
+             * @example grace
+             * @enum {string}
+             */
+            state: "within" | "grace" | "stopped" | "over";
         };
     };
     responses: never;
