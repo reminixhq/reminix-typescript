@@ -253,6 +253,85 @@ describe("reminix.run", () => {
     expect((failure as Error).name).toBe("AbortError");
   });
 
+  it("sends its headers on every request it makes", async () => {
+    const traces: (string | null)[] = [];
+    const answers = [
+      Response.json({ id: "file_1" }, { status: 201 }),
+      Response.json(run({ status: "running" }), { status: 202 }),
+      Response.json(run({}), { status: 200 }),
+    ];
+    const reminix = createClient({
+      token: "sk_x",
+      baseURL: "https://api.example.test",
+      fetch: async (request) => {
+        traces.push(request.headers.get("x-trace"));
+        return answers.shift()!;
+      },
+    });
+    await reminix.run(
+      "summarise",
+      { statement: { name: "a.csv", data: new Uint8Array([1]) } },
+      { pollInterval: 1, headers: { "x-trace": "t-1" } },
+    );
+    // The upload, the start and the poll.
+    expect(traces).toEqual(["t-1", "t-1", "t-1"]);
+  });
+
+  it("limits each request with timeout, and retries one that timed out", async () => {
+    // waitForRun's first poll never answers; its retry does.
+    let attempts = 0;
+    const reminix = createClient({
+      token: "sk_x",
+      baseURL: "https://api.example.test",
+      timeout: 60_000,
+      fetch: (request) => {
+        attempts += 1;
+        expect(request.headers.has("x-sdk-timeout")).toBe(false);
+        if (attempts > 1) return Promise.resolve(Response.json(run({})));
+        return new Promise<Response>((_, fail) => {
+          if (request.signal.aborted) return fail(request.signal.reason);
+          request.signal.addEventListener("abort", () =>
+            fail(request.signal.reason),
+          );
+        });
+      },
+    });
+    const started = Date.now();
+    const done = await reminix.waitForRun("run_1", { timeout: 50 });
+    expect(done.status).toBe("succeeded");
+    expect(attempts).toBe(2);
+    expect(Date.now() - started).toBeLessThan(5_000);
+  });
+
+  it("takes every method's options on uploadFile: headers, timeout and signal", async () => {
+    const seen: (string | null)[] = [];
+    const reminix = createClient({
+      token: "sk_x",
+      baseURL: "https://api.example.test",
+      maxRetries: 0,
+      // As fetch does: an aborted request fails at once.
+      fetch: async (request) => {
+        if (request.signal.aborted) throw request.signal.reason;
+        seen.push(request.headers.get("x-trace"));
+        return Response.json({ id: "file_2" }, { status: 201 });
+      },
+    });
+    await reminix.uploadFile(
+      { name: "a.csv", data: new Uint8Array([1]) },
+      { headers: { "x-trace": "t-2" }, timeout: 5_000 },
+    );
+    expect(seen).toEqual(["t-2"]);
+    const controller = new AbortController();
+    controller.abort();
+    await expect(
+      reminix.uploadFile(
+        { name: "a.csv", data: new Uint8Array([1]) },
+        { signal: controller.signal },
+      ),
+    ).rejects.toMatchObject({ name: "AbortError" });
+    expect(seen).toEqual(["t-2"]);
+  });
+
   it("is typed on the client", () => {
     const { reminix } = fake();
     expectTypeOf(reminix.run).returns.resolves.toEqualTypeOf<Run>();

@@ -56,6 +56,8 @@ console.log(run.output); // { order: "A-10423", amount: "$40.00", refund: "re_â€
 - To make calling again safe, such as from a job that reruns, pass
   `{ idempotencyKey }`: the same key and inputs answer with the first
   run instead of starting another.
+- `timeout` limits each request `run` makes, in milliseconds, and
+  `headers` go with each one. To stop waiting, pass a `signal`.
 
 ## Files given and saved
 
@@ -86,9 +88,10 @@ for (const file of run.files ?? []) {
 
 Every API operation is a typed method, named like its CLI command:
 `reminix runs list` is `reminix.runs.list()`. A list goes through every
-page with `for await`. A failure throws an `APIError` with the error's
-`code`, `message`, `status` and `requestId`. Every error the SDK throws
-is a `ReminixError`.
+page with `for await`. When the API returns an error, the SDK throws an
+`APIError` with the error's `code`, `message`, `status` and `requestId`.
+Every error a call throws is a `ReminixError`, unless your own `signal`
+stopped it.
 
 ## Links
 

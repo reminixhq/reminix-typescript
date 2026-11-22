@@ -17,7 +17,7 @@ export interface paths {
         put?: never;
         /**
          * Add an environment
-         * @description Adds an environment with no secret values yet. To save its values, call secrets.set with X-Environment set to the new environment. Workspace owners, admins and API keys can add an environment.
+         * @description Adds an environment with no secret values yet. To save its values, call secretValues.set with the new environment in the path. Workspace owners, admins and API keys can add an environment.
          */
         post: operations["environments.create"];
         delete?: never;
@@ -265,7 +265,7 @@ export interface paths {
         head?: never;
         /**
          * Change a script
-         * @description Changes a script's name, description or tags, who can see and run it, and which runs need a person's approval. The script owner, a workspace owner or admin, or a workspace API key can change a script. An agent can't change `access`, `teamIds` or `approvalPolicy`. A name, description or tags that the script's reminix.json sets (listed in `setInFile`) can't change here, and the request returns 400.
+         * @description Changes a script's name, description or tags, who can see and run it, and which runs need a person's approval. The script owner, a workspace owner or admin, or a workspace API key can change a script. An agent can't change `access`, `teamIds` or `approvalPolicy`. A name, description or tags that the script's reminix.json sets (listed in `setInFile`) can't change here, and the request returns 409.
          */
         patch: operations["scripts.update"];
         trace?: never;
@@ -1055,7 +1055,7 @@ export interface components {
             inputSchema: {
                 [key: string]: unknown;
             };
-            /** @example Create an API key */
+            /** @example Create a workspace API key */
             title: string;
         };
         ApprovalActionPage: {
@@ -1140,7 +1140,7 @@ export interface components {
              * @example Create the API key “acme-web” with workspace:read
              */
             summary: string;
-            /** @example Create an API key */
+            /** @example Create a workspace API key */
             title: string;
         };
         AuditEvent: {

@@ -2,6 +2,14 @@
 
 What changed in the Reminix TypeScript SDK (`@reminix/sdk`). Generated from the source on each release; newest first.
 
+## 1.0.0-rc.14 (2026-11-22)
+
+### Added
+
+- In the TypeScript SDK, `reminix.run`, `waitForRun` and `uploadFile`
+  now take `timeout` and `headers` for each request they make, as every
+  other method does. `uploadFile` also takes a `signal`.
+
 ## 1.0.0-rc.13 (2026-11-22)
 
 ### Added

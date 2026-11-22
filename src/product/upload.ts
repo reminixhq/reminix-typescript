@@ -1,4 +1,4 @@
-import { unwrap, type BaseClient, type Schemas } from "../index.ts";
+import type { BaseClient, RequestOptions, Schemas } from "../index.ts";
 
 /** A file to give a run: its name, its media type and its bytes. */
 export type FileUpload = {
@@ -9,9 +9,10 @@ export type FileUpload = {
 };
 
 /**
- * Uploads a file to give a run (docs: Files): its bytes as the body, not
- * JSON, which the generated client doesn't send on its own. Pass the
- * returned `id` as a file input.
+ * Uploads a file to give a run (docs: Files): its bytes as the body,
+ * through the client's `files.upload`, so it takes every method's options
+ * (`idempotencyKey`, `headers`, `timeout`, `signal`) and retries like any
+ * write. Pass the returned `id` as a file input.
  *
  *   const file = await uploadFile(api, { name: "adjustments.csv", mediaType: "text/csv", data });
  *   await api.runs.create(slug, { inputs: { statement: file.id } });
@@ -19,7 +20,7 @@ export type FileUpload = {
 export async function uploadFile(
   client: BaseClient,
   file: FileUpload,
-  options: { idempotencyKey?: string; signal?: AbortSignal } = {},
+  options: RequestOptions = {},
 ): Promise<Schemas["File"]> {
   const body =
     file.data instanceof Blob
@@ -27,19 +28,15 @@ export async function uploadFile(
       : new Blob([file.data as Uint8Array<ArrayBuffer>], {
           type: file.mediaType ?? "application/octet-stream",
         });
-  return unwrap(
-    await client.POST("/files", {
-      params: { query: { name: file.name } },
-      body: body as unknown as string,
-      bodySerializer: (value: unknown) => value as string,
-      signal: options.signal,
+  return (await client.files.upload(
+    body,
+    { name: file.name },
+    {
+      ...options,
       headers: {
-        "content-type":
-          file.mediaType ?? (body.type || "application/octet-stream"),
-        ...(options.idempotencyKey
-          ? { "idempotency-key": options.idempotencyKey }
-          : {}),
+        ...(file.mediaType ? { "content-type": file.mediaType } : {}),
+        ...options.headers,
       },
-    }),
-  );
+    },
+  )) as Schemas["File"];
 }

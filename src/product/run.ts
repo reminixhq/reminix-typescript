@@ -1,5 +1,5 @@
 import { SdkError } from "../errors.ts";
-import type { BaseClient, Schemas } from "../index.ts";
+import type { BaseClient, RequestOptions, Schemas } from "../index.ts";
 import { uploadFile, type FileUpload } from "./upload.ts";
 
 /**
@@ -17,6 +17,10 @@ import { uploadFile, type FileUpload } from "./upload.ts";
  * whole call safe — a job that reruns — pass `idempotencyKey`: the run
  * and each file it uploads send keys made from it, so calling again
  * with the same key and inputs answers with the first run.
+ *
+ * Like every method, the helpers take `headers` and `timeout` (each
+ * request's limit, in milliseconds; a timed-out attempt is retried). The
+ * wait as a whole has none: `signal` stops it.
  */
 
 export type RunOptions = {
@@ -35,7 +39,24 @@ export type RunOptions = {
   signal?: AbortSignal;
   /** Your key for this run: the same key again starts no second run. */
   idempotencyKey?: string;
+  /** More headers, sent on every request the helper makes. */
+  headers?: RequestOptions["headers"];
+  /** Each request's limit, in milliseconds (instead of the client's). */
+  timeout?: RequestOptions["timeout"];
 };
+
+/** What `waitForRun` takes: how often to check, and each request's options. */
+export type WaitOptions = Pick<
+  RunOptions,
+  "pollInterval" | "signal" | "headers" | "timeout"
+>;
+
+/** The options every request a helper makes carries. */
+const perRequest = ({ signal, headers, timeout }: WaitOptions) => ({
+  ...(signal ? { signal } : {}),
+  ...(headers ? { headers } : {}),
+  ...(timeout === undefined ? {} : { timeout }),
+});
 
 export type Run = Schemas["Run"];
 
@@ -69,8 +90,8 @@ const isUpload = (value: unknown): value is FileUpload | Blob =>
 async function withFileIds(
   client: BaseClient,
   inputs: Record<string, unknown>,
-  idempotencyKey?: string,
-  signal?: AbortSignal,
+  idempotencyKey: string | undefined,
+  options: WaitOptions,
 ): Promise<Record<string, unknown>> {
   // The nth file's key, in input order: the same on every call.
   let uploaded = 0;
@@ -89,7 +110,7 @@ async function withFileIds(
           ...(idempotencyKey
             ? { idempotencyKey: `${idempotencyKey}:file-${++uploaded}` }
             : {}),
-          signal,
+          ...perRequest(options),
         },
       )
     ).id;
@@ -129,14 +150,14 @@ const pause = (ms: number, signal?: AbortSignal) =>
 export async function waitForRun(
   client: BaseClient,
   run: Run | string,
-  options: Pick<RunOptions, "pollInterval" | "signal"> = {},
+  options: WaitOptions = {},
 ): Promise<Run> {
-  const { signal } = options;
+  const each = perRequest(options);
   let current =
-    typeof run === "string" ? await client.runs.get(run, { signal }) : run;
+    typeof run === "string" ? await client.runs.get(run, each) : run;
   while (!ENDED.has(current.status)) {
-    await pause(options.pollInterval ?? 2000, signal);
-    current = await client.runs.get(current.id, { signal });
+    await pause(options.pollInterval ?? 2000, options.signal);
+    current = await client.runs.get(current.id, each);
   }
   if (current.status !== "succeeded") throw new RunError(current);
   return current;
@@ -149,16 +170,16 @@ export async function run(
   inputs: Record<string, unknown> = {},
   options: RunOptions = {},
 ): Promise<Run> {
-  // The caller's signal reaches every call: the uploads, the start, each poll.
-  const { signal } = options;
+  // The caller's signal, headers and timeout reach every call: the
+  // uploads, the start, each poll.
   const body = {
-    inputs: await withFileIds(client, inputs, options.idempotencyKey, signal),
+    inputs: await withFileIds(client, inputs, options.idempotencyKey, options),
   };
   const keyed = {
     ...(options.idempotencyKey
       ? { idempotencyKey: options.idempotencyKey }
       : {}),
-    signal,
+    ...perRequest(options),
   };
   const started = (
     options.version === undefined
