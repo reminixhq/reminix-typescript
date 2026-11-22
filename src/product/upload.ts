@@ -19,7 +19,7 @@ export type FileUpload = {
 export async function uploadFile(
   client: BaseClient,
   file: FileUpload,
-  options: { idempotencyKey?: string } = {},
+  options: { idempotencyKey?: string; signal?: AbortSignal } = {},
 ): Promise<Schemas["File"]> {
   const body =
     file.data instanceof Blob
@@ -32,6 +32,7 @@ export async function uploadFile(
       params: { query: { name: file.name } },
       body: body as unknown as string,
       bodySerializer: (value: unknown) => value as string,
+      signal: options.signal,
       headers: {
         "content-type":
           file.mediaType ?? (body.type || "application/octet-stream"),

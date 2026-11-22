@@ -85,9 +85,10 @@ for (const file of run.files ?? []) {
 ## Everything else
 
 Every API operation is a typed method, named like its CLI command:
-`reminix runs list` is `reminix.runs.list()`. A failure throws an
-`ApiError` with the error's `code`, `message`, `status` and
-`requestId`.
+`reminix runs list` is `reminix.runs.list()`. A list goes through every
+page with `for await`. A failure throws an `APIError` with the error's
+`code`, `message`, `status` and `requestId`. Every error the SDK throws
+is a `ReminixError`.
 
 ## Links
 

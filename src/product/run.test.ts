@@ -1,6 +1,6 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
 
-import { createClient } from "../index.ts";
+import { createClient, ReminixError } from "../index.ts";
 import { RunError, type Run } from "./index.ts";
 
 /** A fake Reminix answering each request in turn, recording what it got. */
@@ -13,7 +13,7 @@ function fake(...answers: Response[]) {
   }[] = [];
   const reminix = createClient({
     token: "sk_x",
-    api: "https://api.example.test",
+    baseURL: "https://api.example.test",
     fetch: async (request) => {
       const url = new URL(request.url);
       requests.push({
@@ -80,7 +80,7 @@ describe("reminix.run", () => {
       Response.json(run({ status: "running" })),
       Response.json(run({ output: 42 })),
     );
-    const done = await reminix.run("nightly-report", {}, { pollMs: 1 });
+    const done = await reminix.run("nightly-report", {}, { pollInterval: 1 });
     expect(done.output).toBe(42);
     expect(requests.map((r) => `${r.method} ${r.path}`)).toEqual([
       "POST /v1/scripts/nightly-report/runs",
@@ -97,6 +97,9 @@ describe("reminix.run", () => {
       .run("refund-customer")
       .catch((error: unknown) => error);
     expect(failure).toBeInstanceOf(RunError);
+    // Under the SDK's own base, like every error it throws.
+    expect(failure).toBeInstanceOf(ReminixError);
+    expect((failure as RunError).name).toBe("RunError");
     expect((failure as RunError).message).toContain("KeyError: 'orderId'");
     expect((failure as RunError).run.status).toBe("failed");
   });
@@ -118,7 +121,7 @@ describe("reminix.run", () => {
         "refund-customer",
         {},
         {
-          pollMs: 1,
+          pollInterval: 1,
           onApproval: (url) => links.push(url),
         },
       )
@@ -153,6 +156,101 @@ describe("reminix.run", () => {
     expect(JSON.parse(requests[1].body)).toEqual({
       inputs: { statement: "file_1", month: "2026-09" },
     });
+  });
+
+  it("follows a run by its id alone", async () => {
+    const { reminix, requests } = fake(
+      Response.json(run({ status: "running" })),
+      Response.json(run({ output: 9 })),
+    );
+    const done = await reminix.waitForRun("run_1", { pollInterval: 1 });
+    expect(done.output).toBe(9);
+    expect(requests.map((r) => `${r.method} ${r.path}`)).toEqual([
+      "GET /v1/runs/run_1",
+      "GET /v1/runs/run_1",
+    ]);
+  });
+
+  it("follows a run it was handed, on the client too", async () => {
+    const { reminix, requests } = fake(Response.json(run({ output: 7 })));
+    const done = await reminix.waitForRun(run({ status: "running" }), {
+      pollInterval: 1,
+    });
+    expect(done.output).toBe(7);
+    expect(requests.map((r) => `${r.method} ${r.path}`)).toEqual([
+      "GET /v1/runs/run_1",
+    ]);
+  });
+
+  it("sends the key given to uploadFile on the client", async () => {
+    const { reminix, requests } = fake(
+      Response.json({ id: "file_1" }, { status: 201 }),
+    );
+    await reminix.uploadFile(
+      { name: "sept.csv", data: new Uint8Array([1]) },
+      { idempotencyKey: "upload-42" },
+    );
+    expect(requests[0].key).toBe("upload-42");
+  });
+
+  it("stops at AbortSignal.timeout, a slow call included, and the run carries on", async () => {
+    // The start answers; the poll never does, until its signal aborts.
+    let polled: AbortSignal | undefined;
+    const reminix = createClient({
+      token: "sk_x",
+      baseURL: "https://api.example.test",
+      maxRetries: 0,
+      fetch: (request) => {
+        if (request.method === "POST") {
+          return Promise.resolve(
+            Response.json(run({ status: "running" }), { status: 202 }),
+          );
+        }
+        polled = request.signal;
+        return new Promise((_, fail) =>
+          request.signal.addEventListener("abort", () =>
+            fail(request.signal.reason),
+          ),
+        );
+      },
+    });
+    const failure = await reminix
+      .run(
+        "nightly-report",
+        {},
+        { pollInterval: 1, signal: AbortSignal.timeout(50) },
+      )
+      .catch((error: unknown) => error);
+    expect((failure as Error).name).toBe("TimeoutError");
+    expect(polled?.aborted).toBe(true);
+  });
+
+  it("passes its signal to every call", async () => {
+    const signals: (AbortSignal | null)[] = [];
+    const controller = new AbortController();
+    const reminix = createClient({
+      token: "sk_x",
+      baseURL: "https://api.example.test",
+      fetch: (request) => {
+        signals.push(request.signal);
+        controller.abort();
+        return Promise.resolve(
+          request.url.includes("/files")
+            ? Response.json({ id: "file_1" }, { status: 201 })
+            : Response.json(run({ status: "running" }), { status: 202 }),
+        );
+      },
+    });
+    const failure = await reminix
+      .run(
+        "summarise",
+        { statement: { name: "a.csv", data: new Uint8Array([1]) } },
+        { pollInterval: 1, signal: controller.signal },
+      )
+      .catch((error: unknown) => error);
+    // The upload saw the signal; the abort it set off stopped the call.
+    expect(signals[0]?.aborted).toBe(true);
+    expect((failure as Error).name).toBe("AbortError");
   });
 
   it("is typed on the client", () => {

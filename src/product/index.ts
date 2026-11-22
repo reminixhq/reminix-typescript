@@ -15,7 +15,7 @@
  * throws). Take `BaseClient`, not `Client`, so the types don't loop.
  */
 import type { BaseClient } from "../index.ts";
-import { run, type RunOptions } from "./run.ts";
+import { run, waitForRun, type Run, type RunOptions } from "./run.ts";
 import { uploadFile, type FileUpload } from "./upload.ts";
 
 export { RunError, run, waitForRun } from "./run.ts";
@@ -33,6 +33,12 @@ export const productMethods = (client: BaseClient) => ({
   /** Runs a script and answers with the finished run (./run.ts). */
   run: (slug: string, inputs?: Record<string, unknown>, options?: RunOptions) =>
     run(client, slug, inputs, options),
+  /** Follows a run until it ends; throws RunError if it didn't succeed. */
+  waitForRun: (
+    started: Run | string,
+    options?: Pick<RunOptions, "pollInterval" | "signal">,
+  ) => waitForRun(client, started, options),
   /** Uploads a file to give a run as an input; returns it, with its id. */
-  uploadFile: (file: FileUpload) => uploadFile(client, file),
+  uploadFile: (file: FileUpload, options?: { idempotencyKey?: string }) =>
+    uploadFile(client, file, options),
 });

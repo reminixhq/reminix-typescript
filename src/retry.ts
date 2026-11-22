@@ -9,10 +9,11 @@
  * Retried: a network failure, 408, 429, 500, 502, 503, 504, and 409
  * `idempotency_in_progress` (the first attempt is still running). Waits
  * the response's Retry-After when it gives one, else a jittered backoff
- * (0.5s, 1s, … capped at 8s); a Retry-After longer than MAX_WAIT_MS is
+ * (0.5s, 1s, … capped at 8s); a Retry-After longer than MAX_WAIT_MS (60 s) is
  * handed back to the caller rather than slept through. A request whose
- * own signal aborted (a caller's timeout) is never retried: the caller
- * decided.
+ * own signal aborted (a caller's deadline or cancel) is never retried, and
+ * a wait between attempts ends the moment it aborts, throwing the
+ * signal's reason: a call's deadline holds its retries too.
  *
  * A product's own "try again shortly" answers (Limitry's `503 moving`)
  * are retried too when the fork-owned ./product exports `productRetry`
@@ -21,11 +22,12 @@
  */
 
 import * as product from "./product/index.ts";
+import { TIMEOUT_HEADER } from "./resources.ts";
 
 const WRITES = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 const RETRY_STATUSES = new Set([408, 429, 500, 502, 503, 504]);
 export const DEFAULT_MAX_RETRIES = 2;
-export const MAX_WAIT_MS = 20_000;
+export const MAX_WAIT_MS = 60_000;
 /** The longest key a caller may pass where a client derives keys from it. */
 export const MAX_BASE_KEY = 200;
 
@@ -55,6 +57,35 @@ export type ProductRetry = {
  */
 export const PRODUCT_RETRY_HEADER = "x-sdk-product-retry";
 
+/**
+ * Each attempt's time limit (owner, 2026-11-22: as in other TypeScript
+ * API SDKs): `timeout` limits ONE attempt, and a timed-out attempt is a
+ * failed attempt, retried with the same key. A caller limits the whole
+ * call with its `signal` (`AbortSignal.timeout(ms)`). A call's own
+ * timeout travels to the attempt in this header, which never leaves the
+ * client.
+ */
+export const DEFAULT_TIMEOUT_MS = 60_000;
+
+/** Gives each attempt its time limit: the call's (the header), else `ms`. */
+export function withAttemptTimeout(fetch: Fetch, ms: number): Fetch {
+  return (request) => {
+    const asked = Number(request.headers.get(TIMEOUT_HEADER));
+    const limit = asked > 0 ? asked : ms;
+    const headers = new Headers(request.headers);
+    headers.delete(TIMEOUT_HEADER);
+    return fetch(
+      new Request(request, {
+        headers,
+        signal: AbortSignal.any([
+          request.signal,
+          AbortSignal.timeout(Math.max(1, Math.round(limit))),
+        ]),
+      }),
+    );
+  };
+}
+
 // The seam may not export it (the platform's and most forks' don't).
 // Read when a client is made, not on import: ./product may import back.
 // Reflect.get, not product.productRetry: the bundler warns that a missing
@@ -77,6 +108,30 @@ export type RetryOptions = {
 };
 
 const wait = (ms: number) => new Promise<void>((done) => setTimeout(done, ms));
+
+/** `sleep(ms)`, ended early by `signal`: throws its reason when it aborts. */
+function pause(
+  sleep: (ms: number) => Promise<void>,
+  ms: number,
+  signal: AbortSignal,
+): Promise<void> {
+  if (signal.aborted) return Promise.reject(signal.reason);
+  return new Promise<void>((done, fail) => {
+    const abort = () => fail(signal.reason);
+    signal.addEventListener("abort", abort, { once: true });
+    sleep(ms).then(
+      () => {
+        signal.removeEventListener("abort", abort);
+        if (signal.aborted) fail(signal.reason);
+        else done();
+      },
+      (error: unknown) => {
+        signal.removeEventListener("abort", abort);
+        fail(error);
+      },
+    );
+  });
+}
 
 function backoff(attempt: number): number {
   const base = Math.min(500 * 2 ** attempt, 8_000);
@@ -149,7 +204,7 @@ export function withRetries(fetch: Fetch, options: RetryOptions = {}): Fetch {
         response = await fetch(sending);
       } catch (error) {
         if (last || request.signal.aborted) throw error;
-        await sleep(backoff(attempt));
+        await pause(sleep, backoff(attempt), request.signal);
         continue;
       }
       const laterMs = later ? await later.wait(response, laterTries) : null;
@@ -163,7 +218,7 @@ export function withRetries(fetch: Fetch, options: RetryOptions = {}): Fetch {
         laterTries++;
         laterWaited += laterMs;
         await response.body?.cancel();
-        await sleep(laterMs);
+        await pause(sleep, laterMs, request.signal);
         attempt--;
         continue;
       }
@@ -171,7 +226,7 @@ export function withRetries(fetch: Fetch, options: RetryOptions = {}): Fetch {
       const delay = retryAfter(response) ?? backoff(attempt);
       if (delay > MAX_WAIT_MS) return response;
       await response.body?.cancel();
-      await sleep(delay);
+      await pause(sleep, delay, request.signal);
     }
   };
 }

@@ -1,3 +1,4 @@
+import { SdkError } from "../errors.ts";
 import type { BaseClient, Schemas } from "../index.ts";
 import { uploadFile, type FileUpload } from "./upload.ts";
 
@@ -25,9 +26,12 @@ export type RunOptions = {
   wait?: boolean;
   /** Called once if the run waits for a person, with the link to approve it. */
   onApproval?: (approveUrl: string | null) => void;
-  /** How often to check a run that hasn't ended (default 2 s). */
-  pollMs?: number;
-  /** Stop waiting (the run itself carries on). */
+  /** How often to check a run that hasn't ended, in milliseconds (default 2000). */
+  pollInterval?: number;
+  /**
+   * Stop waiting (the run itself carries on): every call it makes stops
+   * too. `AbortSignal.timeout(ms)` limits the whole wait.
+   */
   signal?: AbortSignal;
   /** Your key for this run: the same key again starts no second run. */
   idempotencyKey?: string;
@@ -40,7 +44,7 @@ export type Run = Schemas["Run"];
  * `error` says why (an approval denied or expired, cancelled by a person,
  * its environment deleted).
  */
-export class RunError extends Error {
+export class RunError extends SdkError {
   readonly run: Run;
   constructor(run: Run) {
     super(
@@ -48,7 +52,6 @@ export class RunError extends Error {
         ? `Run ${run.id} was cancelled: ${run.error ?? "no reason given"}`
         : `Run ${run.id} failed: ${run.error ?? "no error message"}`,
     );
-    this.name = "RunError";
     this.run = run;
   }
 }
@@ -67,6 +70,7 @@ async function withFileIds(
   client: BaseClient,
   inputs: Record<string, unknown>,
   idempotencyKey?: string,
+  signal?: AbortSignal,
 ): Promise<Record<string, unknown>> {
   // The nth file's key, in input order: the same on every call.
   let uploaded = 0;
@@ -81,9 +85,12 @@ async function withFileIds(
               data: value,
             }
           : value,
-        idempotencyKey
-          ? { idempotencyKey: `${idempotencyKey}:file-${++uploaded}` }
-          : {},
+        {
+          ...(idempotencyKey
+            ? { idempotencyKey: `${idempotencyKey}:file-${++uploaded}` }
+            : {}),
+          signal,
+        },
       )
     ).id;
   const out: Record<string, unknown> = {};
@@ -115,16 +122,21 @@ const pause = (ms: number, signal?: AbortSignal) =>
     );
   });
 
-/** Follows a run until it ends; throws RunError if it didn't succeed. */
+/**
+ * Follows a run until it ends, given the run or its id; throws RunError
+ * if it didn't succeed.
+ */
 export async function waitForRun(
   client: BaseClient,
-  run: Run,
-  options: Pick<RunOptions, "pollMs" | "signal"> = {},
+  run: Run | string,
+  options: Pick<RunOptions, "pollInterval" | "signal"> = {},
 ): Promise<Run> {
-  let current = run;
+  const { signal } = options;
+  let current =
+    typeof run === "string" ? await client.runs.get(run, { signal }) : run;
   while (!ENDED.has(current.status)) {
-    await pause(options.pollMs ?? 2000, options.signal);
-    current = await client.runs.get(current.id);
+    await pause(options.pollInterval ?? 2000, signal);
+    current = await client.runs.get(current.id, { signal });
   }
   if (current.status !== "succeeded") throw new RunError(current);
   return current;
@@ -137,12 +149,17 @@ export async function run(
   inputs: Record<string, unknown> = {},
   options: RunOptions = {},
 ): Promise<Run> {
+  // The caller's signal reaches every call: the uploads, the start, each poll.
+  const { signal } = options;
   const body = {
-    inputs: await withFileIds(client, inputs, options.idempotencyKey),
+    inputs: await withFileIds(client, inputs, options.idempotencyKey, signal),
   };
-  const keyed = options.idempotencyKey
-    ? { idempotencyKey: options.idempotencyKey }
-    : {};
+  const keyed = {
+    ...(options.idempotencyKey
+      ? { idempotencyKey: options.idempotencyKey }
+      : {}),
+    signal,
+  };
   const started = (
     options.version === undefined
       ? await client.runs.create(slug, body, keyed)

@@ -69,7 +69,7 @@ export interface paths {
         put?: never;
         /**
          * Upload a file
-         * @description Uploads a file that a run can take as a file input. Send the file's bytes as the request body, with `Content-Type` and `Content-Length` headers, and its name as `?name=`. Then pass the returned id as the file input's value (`{ "adjustments": "file_4c1e…" }`). You can give each upload to only one run. If no run uses an upload within a day, Reminix deletes it. Your plan sets the largest file you can upload. Reminix refuses a file over 1,000 MB on every plan.
+         * @description Uploads a file that a run can take as a file input. Send the file's bytes as the request body, with `Content-Type` and `Content-Length` headers, and its name as `?name=`. Then pass the returned id as the file input's value (`{ "adjustments": "file_36d59242-1144-4fcb-851f-20f4c444d538" }`). You can give each upload to only one run. If no run uses an upload within a day, Reminix deletes it. Your plan sets the largest file you can upload. Reminix refuses a file over 1,000 MB on every plan.
          */
         post: operations["files.upload"];
         delete?: never;
@@ -98,7 +98,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/files/{fileId}/download": {
+    "/files/{fileId}/content": {
         parameters: {
             query?: never;
             header?: never;
@@ -106,10 +106,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Download a file
+         * Get a file's content
          * @description Returns the file's bytes as a download. The response always has `Content-Disposition: attachment`, so a browser saves the file instead of showing it as a page.
          */
-        get: operations["files.download"];
+        get: operations["files.content"];
         put?: never;
         post?: never;
         delete?: never;
@@ -265,7 +265,7 @@ export interface paths {
         head?: never;
         /**
          * Change a script
-         * @description Changes a script's name, description or tags, who can see and run it, and which runs need a person's approval. The script owner, a workspace owner or admin, or a workspace API key can change a script. An agent can't change `access`, `teamIds` or `approvalPolicy`.
+         * @description Changes a script's name, description or tags, who can see and run it, and which runs need a person's approval. The script owner, a workspace owner or admin, or a workspace API key can change a script. An agent can't change `access`, `teamIds` or `approvalPolicy`. A name, description or tags that the script's reminix.json sets (listed in `setInFile`) can't change here, and the request returns 400.
          */
         patch: operations["scripts.update"];
         trace?: never;
@@ -321,7 +321,7 @@ export interface paths {
         put?: never;
         /**
          * Run a script
-         * @description Runs the script's published version with these inputs, and returns the run when it finishes, with its output or error. Reminix first checks the inputs against the version's input schema. If they don't match, the request returns 400 with one `details` entry per field. For a file input, pass a file id or an https link that Reminix fetches. The id can be a file you uploaded with files.upload, or a file another run saved. The script runs on its own fresh machine and can reach only the hosts its version declares. A run can last up to its version's `timeoutSeconds`, at most 30, counted from when its code starts. Getting a machine can take up to 2 minutes first. If the run is still in progress after 60 seconds, the request returns 202 with status `running`, and you follow the run with runs.get. If the version's `timeoutSeconds` is over 30, the run is a long run. A long run runs durably, and the request returns 202 at once. Every run counts toward the workspace's `runs` usage.
+         * @description Runs the script's published version with these inputs, and returns the run when it finishes (201), with its output or error. Reminix first checks the inputs against the version's input schema. If they don't match, the request returns 400 with one `details` entry per field. For a file input, pass a file id or an https link that Reminix fetches. The id can be a file you uploaded with files.upload, or a file another run saved. The script runs on its own fresh machine and can reach only the hosts its version declares. A run can last up to its version's `timeoutSeconds`, at most 30, counted from when its code starts. Getting a machine can take up to 2 minutes first. If the run is still in progress after 60 seconds, the request returns 202 with status `running`, and you follow the run with runs.get. If the version's `timeoutSeconds` is over 30, the run is a long run. A long run runs durably, and the request returns 202 at once. Every run counts toward the workspace's `runs` usage.
          */
         post: operations["runs.create"];
         delete?: never;
@@ -361,7 +361,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * Get a schedule
+         * @description Returns one of a script's schedules, with when it runs next.
+         */
+        get: operations["schedules.get"];
         put?: never;
         post?: never;
         /**
@@ -409,7 +413,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * Get a trigger
+         * @description Returns one of a script's triggers. A webhook trigger's secret is never returned again after it is made or rotated.
+         */
+        get: operations["triggers.get"];
         put?: never;
         post?: never;
         /**
@@ -435,9 +443,9 @@ export interface paths {
         };
         /**
          * List a webhook trigger's calls
-         * @description Returns a webhook trigger's last 20 calls, newest first: when each came, whether it started a run or repeated an earlier call, why Reminix refused it, and the run. Reminix keeps calls for 30 days.
+         * @description Lists a webhook trigger's calls, newest first: when each came, whether it started a run or repeated an earlier call, why Reminix refused it, and the run. Reminix keeps calls for 30 days.
          */
-        get: operations["triggers.calls"];
+        get: operations["triggerCalls.list"];
         put?: never;
         post?: never;
         delete?: never;
@@ -475,7 +483,7 @@ export interface paths {
         };
         /**
          * List a script's versions
-         * @description Lists every version of a script, newest first, and marks the published one.
+         * @description Lists a script's versions, newest first, and marks the published one. Paginate with the opaque `nextCursor` token.
          */
         get: operations["scriptVersions.list"];
         put?: never;
@@ -484,6 +492,26 @@ export interface paths {
          * @description Uploads a new draft version of a script. Send the version's source, the command that runs it and the JSON Schema of its inputs. The source is the script's folder as a .tar.gz file in base64, and the CLI makes it for you. If you leave out the command, Reminix works it out from the folder: the one script in pyproject.toml, the `bin`, `start` or `main` in package.json, or the folder's one .py, .js, .ts or .sh file. If you leave out the input schema, each `{name}` in the command becomes a text input. If you leave out the README, Reminix uses the folder's README.md. Reminix installs the dependencies from requirements.txt, pyproject.toml or package.json once, during the upload. If the install fails, the request returns 400 with what the install printed. Runs keep using the published version until you publish this one. To upload and publish in one call, pass `publish: true`, and add `create: true` for a new script.
          */
         post: operations["scriptVersions.upload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/scripts/{slug}/versions/{version}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a version
+         * @description Returns one version of a script, and whether it's the published one.
+         */
+        get: operations["scriptVersions.get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -557,12 +585,12 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
         /**
-         * Save a secret
-         * @description Saves a secret's value in the request's environment. Saving creates the secret if it's new, or replaces the value and its hosts to rotate it. Reminix encrypts the value, and no call ever returns it. Reminix sends the value only to the hosts in `hosts`. Workspace owners, admins and API keys can save a secret.
+         * Get a secret
+         * @description Returns one secret by its name, with the environments that have a value and the hosts each value may go to. It never includes the values themselves.
          */
-        put: operations["secrets.set"];
+        get: operations["secrets.get"];
+        put?: never;
         post?: never;
         /**
          * Delete a secret
@@ -571,7 +599,11 @@ export interface paths {
         delete: operations["secrets.delete"];
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Update a secret
+         * @description Changes what applies to a secret in every environment. Its values are saved one environment at a time, with Save a secret's value. Workspace owners, admins and API keys can change a secret.
+         */
+        patch: operations["secrets.update"];
         trace?: never;
     };
     "/secrets/{name}/values/{environment}": {
@@ -582,7 +614,11 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        put?: never;
+        /**
+         * Save a secret's value
+         * @description Saves a secret's value in one environment. Saving creates the secret if it's new, or replaces the value and its hosts to rotate it. Reminix encrypts the value, and no call ever returns it. Reminix sends the value only to the hosts in `hosts`. Workspace owners, admins and API keys can save a secret.
+         */
+        put: operations["secretValues.set"];
         post?: never;
         /**
          * Remove a secret's value from an environment
@@ -663,7 +699,7 @@ export interface paths {
         };
         /**
          * List the actions you can ask approval for
-         * @description Lists the actions a credential can't take itself but can ask a person to approve. Each action comes with its input as a JSON Schema, who can approve it and whether it creates a secret.
+         * @description Lists the actions a credential can't take itself but can ask a person to approve. Each action comes with its input as a JSON Schema (`inputSchema`), who can approve it and whether it creates a secret. Every action fits on one page, so `nextCursor` is null.
          */
         get: operations["workspace.approvalActions.list"];
         put?: never;
@@ -694,7 +730,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/workspace/approval-requests/{requestId}": {
+    "/workspace/approval-requests/{approvalRequestId}": {
         parameters: {
             query?: never;
             header?: never;
@@ -714,7 +750,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/workspace/approval-requests/{requestId}/redeem": {
+    "/workspace/approval-requests/{approvalRequestId}/redeem": {
         parameters: {
             query?: never;
             header?: never;
@@ -743,7 +779,7 @@ export interface paths {
         };
         /**
          * List workspace audit events
-         * @description Lists the workspace's audit events, newest first. Paginate with the opaque `nextCursor` token. `limit` takes 1 to 100 and defaults to 25. `before` starts from a moment. `action` keeps one kind of event, and `actor` what one person, key or token did. With a personal access token, only workspace owners can call this, as with the audit page in the app. A workspace API key always can, because it acts as the workspace itself.
+         * @description Lists the workspace's audit events, newest first. Paginate with the opaque `nextCursor` token. `limit` takes 1 to 100 and defaults to 25. `before` starts from a moment. `action` keeps one kind of event, and `actor` what one person, key or token did. With a personal access token, only workspace owners and admins can call this, as with the audit page in the app. A workspace API key always can, because it acts as the workspace itself.
          */
         get: operations["workspace.auditEvents.list"];
         put?: never;
@@ -763,7 +799,7 @@ export interface paths {
         };
         /**
          * List event types
-         * @description Lists every workspace event a webhook endpoint can subscribe to, and what each one means. Pass some as `eventTypes` when you add an endpoint. An endpoint without a list receives every event.
+         * @description Lists every workspace event a webhook endpoint can subscribe to, and what each one means. Pass some as `eventTypes` when you add an endpoint. An endpoint without a list receives every event. Every type fits on one page, so `nextCursor` is null.
          */
         get: operations["workspace.eventTypes.list"];
         put?: never;
@@ -814,6 +850,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/workspace/plan-usage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get your plan's usage this period
+         * @description Returns what the workspace used this period, with one entry for each thing its plan counts. Each entry has the plan's limit, or null when there is no limit. Each entry also says where it stands and where we start refusing new use. A period is one month from the workspace's billing date. That date comes from its subscription or, without one, from the day you created the workspace. On an annual plan, the counts still reset every month from the subscription's start.
+         */
+        get: operations["workspace.planUsage.get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/workspace/teams": {
         parameters: {
             query?: never;
@@ -834,26 +890,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/workspace/usage": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get your plan's usage this period
-         * @description Returns what the workspace used this period, with one entry for each thing its plan counts. Each entry has the plan's limit, or null when there is no limit. Each entry also says where it stands and where we start refusing new use. A period is one month from the workspace's billing date. That date comes from its subscription or, without one, from the day you created the workspace. On an annual plan, the counts still reset every month from the subscription's start.
-         */
-        get: operations["workspace.usage"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/workspace/webhook-endpoints": {
         parameters: {
             query?: never;
@@ -863,13 +899,13 @@ export interface paths {
         };
         /**
          * List webhook endpoints
-         * @description Lists the workspace's outgoing webhook endpoints, newest first. The list leaves out their signing secrets. A workspace has at most 10 endpoints, so the list is a single page. Its `nextCursor` is null. With a personal access token, only the workspace owner can call this. A workspace API key with this scope can.
+         * @description Lists the workspace's outgoing webhook endpoints, newest first. The list leaves out their signing secrets. A workspace has at most 10 endpoints, so the list is a single page. Its `nextCursor` is null. With a personal access token, the workspace's owners and admins can call this, and members on the test side. A workspace API key with this scope can.
          */
         get: operations["workspace.webhookEndpoints.list"];
         put?: never;
         /**
          * Add a webhook endpoint
-         * @description Registers an HTTPS URL to receive the workspace's events. Deliveries use the same signature format as Svix. The response includes the endpoint's signing secret (`whsec_…`). You see it only once, so store it to verify deliveries. The API refuses private hosts and hosts without HTTPS. A workspace can have at most 10 endpoints. With a personal access token, only the workspace owner can call this. A workspace API key with this scope can.
+         * @description Registers an HTTPS URL to receive the workspace's events. Deliveries use the same signature format as Svix. The response is the new endpoint with its signing secret (`whsec_…`) in `secret`. You see it only once, so store it to verify deliveries. The API refuses private hosts and hosts without HTTPS. A workspace can have at most 10 endpoints. With a personal access token, the workspace's owners and admins can call this, and members on the test side. A workspace API key with this scope can.
          */
         post: operations["workspace.webhookEndpoints.create"];
         delete?: never;
@@ -887,21 +923,21 @@ export interface paths {
         };
         /**
          * Get a webhook endpoint
-         * @description Returns one endpoint without its signing secret. It shows whether the endpoint is on, its consecutive failures and its last delivery status. With a personal access token, only the workspace owner can call this. A workspace API key with this scope can.
+         * @description Returns one endpoint without its signing secret. It shows whether the endpoint is on, its consecutive failures and its last delivery status. With a personal access token, the workspace's owners and admins can call this, and members on the test side. A workspace API key with this scope can.
          */
         get: operations["workspace.webhookEndpoints.get"];
         put?: never;
         post?: never;
         /**
          * Remove a webhook endpoint
-         * @description Deletes the endpoint and its signing secret. All deliveries to the endpoint stop. Its delivery history goes with it. With a personal access token, only the workspace owner can call this. A workspace API key with this scope can.
+         * @description Deletes the endpoint and its signing secret. All deliveries to the endpoint stop. Its delivery history goes with it. With a personal access token, the workspace's owners and admins can call this, and members on the test side. A workspace API key with this scope can.
          */
         delete: operations["workspace.webhookEndpoints.delete"];
         options?: never;
         head?: never;
         /**
          * Update a webhook endpoint
-         * @description Changes an endpoint's URL, description or event types in place. Only the fields you send change. The endpoint keeps its signing secret, so receivers keep verifying deliveries. A new URL must pass the same checks as on create. It must use HTTPS and can't be a private host. With a personal access token, only the workspace owner can call this. A workspace API key with this scope can.
+         * @description Changes an endpoint's URL, description or event types in place. Only the fields you send change. The endpoint keeps its signing secret, so receivers keep verifying deliveries. A new URL must pass the same checks as on create. It must use HTTPS and can't be a private host. With a personal access token, the workspace's owners and admins can call this, and members on the test side. A workspace API key with this scope can.
          */
         patch: operations["workspace.webhookEndpoints.update"];
         trace?: never;
@@ -915,7 +951,7 @@ export interface paths {
         };
         /**
          * List an endpoint's deliveries
-         * @description Lists one endpoint's delivery history, newest first. Each entry shows the event's status, attempts and last HTTP status. Payloads aren't included. We keep the history for 30 days. Paginate with the opaque `nextCursor`. `before` starts from a moment, and `status` keeps one kind of delivery. With a personal access token, only the workspace owner can call this. A workspace API key with this scope can.
+         * @description Lists one endpoint's delivery history, newest first. Each entry shows the delivery's state, its attempts and the last HTTP status code. Payloads aren't included. We keep the history for 30 days. Paginate with the opaque `nextCursor`. `before` starts from a moment, and `status` keeps one kind of delivery. With a personal access token, the workspace's owners and admins can call this, and members on the test side. A workspace API key with this scope can.
          */
         get: operations["workspace.webhookDeliveries.list"];
         put?: never;
@@ -937,7 +973,7 @@ export interface paths {
         put?: never;
         /**
          * Redeliver an event
-         * @description Sends a recorded delivery's event again, as a new delivery. The new delivery gets its own history entry. The event id stays the same, so receivers can deduplicate. Redelivery only works on an enabled endpoint. With a personal access token, only the workspace owner can call this. A workspace API key with this scope can.
+         * @description Sends a recorded delivery's event again, as a new delivery. The new delivery gets its own history entry. The event id stays the same, so receivers can deduplicate. Redelivery only works on an enabled endpoint. It answers 200 when we attempted the delivery right away, with the endpoint's answer, and 202 when it went to the queue. With a personal access token, the workspace's owners and admins can call this, and members on the test side. A workspace API key with this scope can.
          */
         post: operations["workspace.webhookDeliveries.redeliver"];
         delete?: never;
@@ -957,7 +993,7 @@ export interface paths {
         put?: never;
         /**
          * Re-enable a webhook endpoint
-         * @description Resumes deliveries to an endpoint that stopped after repeated failures. The endpoint keeps its signing secret. Its failure count resets. With a personal access token, only the workspace owner can call this. A workspace API key with this scope can.
+         * @description Resumes deliveries to an endpoint that stopped after repeated failures. The endpoint keeps its signing secret. Its failure count resets. With a personal access token, the workspace's owners and admins can call this, and members on the test side. A workspace API key with this scope can.
          */
         post: operations["workspace.webhookEndpoints.enable"];
         delete?: never;
@@ -977,7 +1013,7 @@ export interface paths {
         put?: never;
         /**
          * Send a test event
-         * @description Sends a `ping` event to the endpoint, signed like every delivery. Use it to check that an integration verifies and accepts deliveries. With a personal access token, only the workspace owner can call this. A workspace API key with this scope can.
+         * @description Sends a `ping` event to the endpoint, signed like every delivery. Use it to check that an integration verifies and accepts deliveries. It answers 200 when we attempted the delivery right away, with the endpoint's answer, and 202 when it went to the queue. With a personal access token, the workspace's owners and admins can call this, and members on the test side. A workspace API key with this scope can.
          */
         post: operations["workspace.webhookEndpoints.test"];
         delete?: never;
@@ -990,21 +1026,75 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        ApprovalAction: {
+            /**
+             * @description The workspace roles that can approve the action.
+             * @example [
+             *       "owner"
+             *     ]
+             */
+            approverRoles: ("owner" | "admin" | "member" | "guest")[];
+            /** @example true */
+            createsSecret: boolean;
+            /** @example workspace.apiKey.create */
+            id: string;
+            /**
+             * @description The JSON Schema the request's `input` must match.
+             * @example {
+             *       "type": "object",
+             *       "properties": {
+             *         "name": {
+             *           "type": "string"
+             *         }
+             *       },
+             *       "required": [
+             *         "name"
+             *       ]
+             *     }
+             */
+            inputSchema: {
+                [key: string]: unknown;
+            };
+            /** @example Create an API key */
+            title: string;
+        };
+        ApprovalActionPage: {
+            items: components["schemas"]["ApprovalAction"][];
+            /** @description Always null: every action fits on one page. */
+            nextCursor: null;
+        };
+        ApprovalRedemption: {
+            /** @example REMINIX_API_KEY */
+            envVar: string | null;
+            request: components["schemas"]["ApprovalRequest"];
+            /** @example sk_reminix_Xk2mP9qR4tV7wY1zB3cD5fG8hJ0kL6nQXk2mP9qR4tV7wY1zB3cD5fG8hJ0kL6nQ */
+            secret: string | null;
+        };
         ApprovalRequest: {
             /** @example workspace.apiKey.create */
             action: string;
             /**
              * @description The page where a person approves or denies the request. Show it to them.
-             * @example https://app.reminix.com/approvals/apr_7c2e…
+             * @example https://app.reminix.com/approvals/apr_7c2e9b4d-1f3a-4e5b-8c6d-7e8f9a0b1c2d
              */
             approveUrl: string;
-            /** @example 2026-08-19T12:00:00.000Z */
+            /**
+             * Format: date-time
+             * @example 2026-08-19T12:00:00.000Z
+             */
             createdAt: string;
-            /** @example null */
+            /**
+             * Format: date-time
+             * @description When a person approved or denied it. Null until then.
+             * @example null
+             */
             decidedAt: string | null;
-            /** @example 2026-08-20T12:00:00.000Z */
+            /**
+             * Format: date-time
+             * @example 2026-08-20T12:00:00.000Z
+             */
             expiresAt: string;
-            /** @example apr_7c2e… */
+            /** @example apr_7c2e9b4d-1f3a-4e5b-8c6d-7e8f9a0b1c2d */
             id: string;
             /**
              * @example {
@@ -1054,28 +1144,35 @@ export interface components {
             title: string;
         };
         AuditEvent: {
-            /** @example workspace.member_invited */
+            /**
+             * @description What happened, as `<resource>.<past-tense verb>`, the grammar of webhook event types. The Audit page in the app lists them.
+             * @example workspace.member.invited
+             */
             action: string;
             /** @description Who acted. */
             actor: {
                 /**
                  * @description The person who acted, for a `user` actor. Null for anyone else. Pass `user:` and this id as `actor` to see only what they did.
-                 * @example usr_k3TAiF2ZP5sQ
+                 * @example usr_4f8a2c1e-7b3d-4e9f-a6c5-2d1b0e9f8a7c
                  */
                 id: string | null;
             };
             /**
              * @description Who is accountable: `user`, `staff`, `system` or `api_key`.
              * @example user
+             * @enum {string}
              */
-            actorType: string;
-            /** @example 2026-08-19T12:00:00.000Z */
+            actorType: "user" | "staff" | "system" | "api_key";
+            /**
+             * Format: date-time
+             * @example 2026-08-19T12:00:00.000Z
+             */
             createdAt: string;
             /** @description The API credential the action came through, with the name it had at the time. Null for actions taken in the app. */
             credential: {
                 /**
                  * @description The key or token. Pass `credential:` and this id as `actor` to see only what it did.
-                 * @example key_8a1bQ2
+                 * @example pat_8a1b2c3d-4e5f-4061-8a7b-9c0d1e2f3a4b
                  */
                 id: string | null;
                 /** @example ci */
@@ -1083,10 +1180,11 @@ export interface components {
                 /**
                  * @description `api_key` or `pat`.
                  * @example pat
+                 * @enum {string}
                  */
-                type: string;
+                type: "api_key" | "pat";
             } | null;
-            /** @example evt_k3TAiF2ZP5sQxWbV */
+            /** @example aud_6b2f9e1c-3d4a-4f8b-9e7c-1a2b3c4d5e6f */
             id: string;
         };
         AuditEventPage: {
@@ -1106,11 +1204,14 @@ export interface components {
              * @enum {string}
              */
             approvalPolicy: "none" | "agents" | "always";
-            /** @example 2026-08-20T09:00:00.000Z */
+            /**
+             * Format: date-time
+             * @example 2026-08-20T09:00:00.000Z
+             */
             createdAt: string;
-            /** @example TOlQmSLQpmFUqPNrBPChDbAfJEIpvKGo */
+            /** @example usr_1e21afeb-a999-46d6-8874-ae1c97c88418 */
             createdByUserId: string | null;
-            /** @example env_3f9c… */
+            /** @example env_6a88d290-171d-4fba-8710-21b0f94a5f0a */
             id: string;
             /**
              * @description Whether this is the workspace's default environment. A request that names no environment acts here.
@@ -1119,7 +1220,10 @@ export interface components {
             isDefault: boolean;
             /** @example staging */
             name: string;
-            /** @example 2026-08-20T09:00:00.000Z */
+            /**
+             * Format: date-time
+             * @example 2026-08-20T09:00:00.000Z
+             */
             updatedAt: string;
         };
         EnvironmentDetail: components["schemas"]["Environment"] & {
@@ -1139,6 +1243,11 @@ export interface components {
              * @example staging
              */
             name: string;
+        };
+        EnvironmentPage: {
+            items: components["schemas"]["Environment"][];
+            /** @description Pass as ?cursor= to fetch the next page. */
+            nextCursor: string | null;
         };
         EnvironmentPatch: {
             /** @description Whether agents connected through MCP can run scripts in this environment. When it's false, Reminix also refuses schedules and triggers an agent adds here. */
@@ -1230,20 +1339,35 @@ export interface components {
              */
             type: "event";
         };
+        EventType: {
+            /** @example A person joined the workspace, by accepting an invitation or being added. `data.userId` says who. */
+            description: string;
+            /** @example workspace.member.joined */
+            type: string;
+        };
+        EventTypePage: {
+            items: components["schemas"]["EventType"][];
+            /** @description Always null: every event type fits on one page. */
+            nextCursor: null;
+        };
         File: {
-            /** @example 2026-10-01T09:14:12.000Z */
+            /**
+             * Format: date-time
+             * @example 2026-10-01T09:14:12.000Z
+             */
             createdAt: string;
             /**
-             * @description A link to the file's bytes that works for an hour without a key. The link always downloads the file. It's null when download links aren't available. Use GET /v1/files/{fileId}/download instead.
+             * @description A link to the file's bytes that works for an hour without a key. The link always downloads the file. It's null when download links aren't available. Use GET /v1/files/{fileId}/content instead.
              * @example https://3c5a….r2.cloudflarestorage.com/files/…?X-Amz-Expires=3600&X-Amz-Signature=…
              */
             downloadUrl: string | null;
             /**
+             * Format: date-time
              * @description When Reminix deletes the file. An upload expires a day after it's uploaded. Once a run uses it, Reminix keeps the file for your plan's number of days from then.
              * @example 2026-10-02T09:14:12.000Z
              */
             expiresAt: string;
-            /** @example file_4c1e… */
+            /** @example file_36d59242-1144-4fcb-851f-20f4c444d538 */
             id: string;
             /**
              * @description For a file given to a run, the input it was given as. Otherwise null.
@@ -1277,17 +1401,21 @@ export interface components {
              * @description The file's size in bytes.
              * @example 18432
              */
-            size: number;
+            sizeBytes: number;
         };
         FileListItem: components["schemas"]["File"] & {
-            /** @example 2026-10-01T09:14:20.000Z */
+            /**
+             * Format: date-time
+             * @example 2026-10-01T09:14:20.000Z
+             */
             createdAt?: string;
             /**
+             * Format: date-time
              * @description When Reminix deletes the file. An upload expires a day after it's uploaded. Once a run uses it, Reminix keeps the file for your plan's number of days from then.
              * @example 2026-10-08T09:14:20.000Z
              */
             expiresAt?: string;
-            /** @example file_8b3d… */
+            /** @example file_ab689098-cd54-4061-8322-c3eec1f29745 */
             id?: string;
             /**
              * @description The file's name. For a file a run saved, this is its path inside the run's /saved folder.
@@ -1301,14 +1429,17 @@ export interface components {
              */
             origin?: "input" | "saved";
             run: {
-                /** @example run_5d8e… */
+                /** @example run_d3c0553c-fa27-400f-8525-7b2985b36444 */
                 id: string;
-                /** @example 2026-10-01T09:14:15.000Z */
+                /**
+                 * Format: date-time
+                 * @example 2026-10-01T09:14:15.000Z
+                 */
                 startedAt: string;
             };
             /**
              * @description The run that took or saved the file. It's null for an upload no run has used yet.
-             * @example run_5d8e…
+             * @example run_d3c0553c-fa27-400f-8525-7b2985b36444
              */
             runId?: string | null;
             /** @description The script whose run took or saved the file. */
@@ -1327,7 +1458,7 @@ export interface components {
              * @description The file's size in bytes.
              * @example 52480
              */
-            size?: number;
+            sizeBytes?: number;
             startedBy: components["schemas"]["StartedBy"] & unknown;
         };
         FilePage: {
@@ -1336,25 +1467,30 @@ export interface components {
             nextCursor: string | null;
         };
         Invitation: {
-            /** @example 2026-08-19T12:00:00.000Z */
+            /**
+             * Format: date-time
+             * @example 2026-08-19T12:00:00.000Z
+             */
             createdAt: string;
             /** @example sam@example.com */
             email: string;
-            /** @example 2026-08-21T12:00:00.000Z */
-            expiresAt: string;
-            /** @example c1d9e0a4-2b7f-4e3a-9f6d-8a5b4c3e2f10 */
-            id: string;
-            /** @example member */
-            role: string | null;
             /**
-             * @description The seat type the person will hold on accepting. Null for a guest, or where the product has no seat types.
-             * @example runners
+             * Format: date-time
+             * @example 2026-08-21T12:00:00.000Z
              */
-            seat: string | null;
+            expiresAt: string;
+            /** @example inv_c1d9e0a4-2b7f-4e3a-9f6d-8a5b4c3e2f10 */
+            id: string;
+            /**
+             * @description The role the person gets on accepting.
+             * @example member
+             * @enum {string|null}
+             */
+            role: "owner" | "admin" | "member" | "guest" | null;
             /**
              * @description The teams the person joins on accepting. Everyone except a guest also joins the default team.
              * @example [
-             *       "5cfbfbdc-bd74-4b1b-aacf-cc18a0ab960e"
+             *       "team_5cfbfbdc-bd74-4b1b-aacf-cc18a0ab960e"
              *     ]
              */
             teamIds: string[];
@@ -1369,24 +1505,23 @@ export interface components {
             email: string;
             /**
              * @description The membership's id.
-             * @example 5070e1f6-5adf-4170-92bd-20cac815d34c
+             * @example mem_5070e1f6-5adf-4170-92bd-20cac815d34c
              */
             id: string;
-            /** @example 2026-08-19T12:00:00.000Z */
+            /**
+             * Format: date-time
+             * @example 2026-08-19T12:00:00.000Z
+             */
             joinedAt: string;
             /** @example Ana Lopez */
             name: string;
             /**
-             * @description `owner`, `admin`, `member` or `guest`.
+             * @description `owner`, `admin`, `member` or `guest`. What each may do is on the docs' Roles page.
              * @example member
+             * @enum {string}
              */
-            role: string;
-            /**
-             * @description The seat type the member holds, where the product has seat types: it decides what they do here. Null for a guest, or where the product has none.
-             * @example publishers
-             */
-            seat: string | null;
-            /** @example Vb2KqW8nRx4LmT6pYc9HsJ3dFg7Na1Ue */
+            role: "owner" | "admin" | "member" | "guest";
+            /** @example usr_4f8a2c1e-7b3d-4e9f-a6c5-2d1b0e9f8a7c */
             userId: string;
         };
         MemberPage: {
@@ -1394,16 +1529,76 @@ export interface components {
             /** @description Pass as ?cursor= to fetch the next page. */
             nextCursor: string | null;
         };
+        PlanUsage: {
+            counts: components["schemas"]["PlanUsageCount"][];
+            /**
+             * @description Things to know about these numbers, such as some usage being unavailable right now.
+             * @example []
+             */
+            notices?: string[];
+            /**
+             * Format: date-time
+             * @description When the counts reset.
+             * @example 2026-11-17T14:30:00.000Z
+             */
+            periodEnd: string;
+            /**
+             * Format: date-time
+             * @description When this period began. Each period starts a month after the last one, counted from the billing date.
+             * @example 2026-10-17T14:30:00.000Z
+             */
+            periodStart: string;
+            /**
+             * @description Where the workspace stands, from its most limited count. The order from worst is `stopped`, `grace`, `over`, then `within`.
+             * @example grace
+             * @enum {string}
+             */
+            state: "within" | "grace" | "stopped" | "over";
+        };
+        PlanUsageCount: {
+            /** @example Webhook deliveries this period */
+            description: string;
+            /** @example webhook_deliveries */
+            id: string;
+            /**
+             * @description The count's name, as the app shows it.
+             * @example Webhook deliveries
+             */
+            label: string;
+            /**
+             * @description The limit for this period. Null means unlimited. Zero means your plan includes none.
+             * @example 10000
+             */
+            limit: number | null;
+            /**
+             * @description Where the count stands. `within` is under the limit. `grace` is past the limit, still running until `stopsAt`. `stopped` means we refuse new use until `periodEnd`. `over` is past the limit of a count we never refuse.
+             * @example grace
+             * @enum {string}
+             */
+            state: "within" | "grace" | "stopped" | "over";
+            /**
+             * @description Where we start refusing new use until the period resets. It equals `limit` when the count stops at its limit. It is higher when the count keeps running for a while past it. Null means we never refuse it.
+             * @example 11000
+             */
+            stopsAt: number | null;
+            /**
+             * @description The unit of the limit, when the plan names one. Absent otherwise.
+             * @example per month
+             */
+            unit?: string;
+            /** @example 10400 */
+            used: number;
+        };
         PublishRequested: {
             approval: {
                 /**
                  * @description Where a person approves or denies the request in the app.
-                 * @example https://app.reminix.com/approvals/apr_7c2e…
+                 * @example https://app.reminix.com/approvals/apr_f86a697c-e037-4ee6-828d-22a13c595b02
                  */
                 approveUrl: string;
                 /**
                  * @description The approval request's id.
-                 * @example apr_7c2e…
+                 * @example apr_f86a697c-e037-4ee6-828d-22a13c595b02
                  */
                 id: string;
             };
@@ -1439,9 +1634,12 @@ export interface components {
              * @example []
              */
             files?: components["schemas"]["File"][];
-            /** @example 2026-10-02T14:05:02.400Z */
+            /**
+             * Format: date-time
+             * @example 2026-10-02T14:05:02.400Z
+             */
             finishedAt: string | null;
-            /** @example run_7b1a… */
+            /** @example run_620f14ad-32e8-4f5e-89fd-1c80de7e9124 */
             id: string;
             /**
              * @example {
@@ -1477,12 +1675,15 @@ export interface components {
              */
             scheduleId: string | null;
             script: {
-                /** @example scr_3f0c… */
+                /** @example scr_6a7e78ca-5ef5-4c68-80cb-09aec047f7a3 */
                 id: string;
                 /** @example unlock-account */
                 slug: string;
             };
-            /** @example 2026-10-02T14:05:00.000Z */
+            /**
+             * Format: date-time
+             * @example 2026-10-02T14:05:00.000Z
+             */
             startedAt: string;
             startedBy: components["schemas"]["StartedBy"];
             /**
@@ -1515,9 +1716,9 @@ export interface components {
         };
         /**
          * @example {
-         *       "id": "run_7b1a…",
+         *       "id": "run_620f14ad-32e8-4f5e-89fd-1c80de7e9124",
          *       "script": {
-         *         "id": "scr_3f0c…",
+         *         "id": "scr_6a7e78ca-5ef5-4c68-80cb-09aec047f7a3",
          *         "slug": "unlock-account"
          *       },
          *       "version": 3,
@@ -1529,7 +1730,7 @@ export interface components {
          *       "output": null,
          *       "error": null,
          *       "startedBy": {
-         *         "userId": "Vb2KqW8nRx4LmT6pYc9HsJ3dFg7Na1Ue",
+         *         "userId": "usr_276b6c46-92e7-4d47-89c1-2ada515bc3e4",
          *         "name": "Ana Lopez",
          *         "credential": {
          *           "type": "oauth_client",
@@ -1537,7 +1738,7 @@ export interface components {
          *         }
          *       },
          *       "via": "agent",
-         *       "approvalRequestId": "apr_7c2e…",
+         *       "approvalRequestId": "apr_f86a697c-e037-4ee6-828d-22a13c595b02",
          *       "scheduleId": null,
          *       "triggerId": null,
          *       "progress": null,
@@ -1548,17 +1749,17 @@ export interface components {
          *       "finishedAt": null,
          *       "durationMs": null,
          *       "approval": {
-         *         "id": "apr_7c2e…",
-         *         "approveUrl": "https://app.reminix.com/approvals/apr_7c2e…"
+         *         "id": "apr_f86a697c-e037-4ee6-828d-22a13c595b02",
+         *         "approveUrl": "https://app.reminix.com/approvals/apr_f86a697c-e037-4ee6-828d-22a13c595b02"
          *       }
          *     }
          */
         RunAwaitingApproval: components["schemas"]["Run"] & {
             /** @description The request a person approves or denies. It's null if Reminix couldn't file the request, or if the run isn't awaiting approval. */
             approval: {
-                /** @example https://app.reminix.com/approvals/apr_7c2e… */
+                /** @example https://app.reminix.com/approvals/apr_f86a697c-e037-4ee6-828d-22a13c595b02 */
                 approveUrl: string;
-                /** @example apr_7c2e… */
+                /** @example apr_f86a697c-e037-4ee6-828d-22a13c595b02 */
                 id: string;
             } | null;
         };
@@ -1595,7 +1796,7 @@ export interface components {
             nextCursor: string | null;
         };
         Schedule: {
-            /** @example TOlQmSLQpmFUqPNrBPChDbAfJEIpvKGo */
+            /** @example usr_1e21afeb-a999-46d6-8874-ae1c97c88418 */
             createdByUserId: string | null;
             /** @example 0 8 1 * * */
             cron: string;
@@ -1611,19 +1812,25 @@ export interface components {
              * @example production
              */
             environment: string;
-            /** @example sch_2b9f… */
+            /** @example sch_037f4852-dc5e-40c8-82a9-852a44410c85 */
             id: string;
             /** @example {} */
             inputs: {
                 [key: string]: unknown;
             };
-            /** @example 2026-10-01T06:00:00.000Z */
+            /**
+             * Format: date-time
+             * @example 2026-10-01T06:00:00.000Z
+             */
             lastRunAt: string | null;
-            /** @example run_2a6f… */
+            /** @example run_a381c8e3-9778-494f-84a4-7529ebd8009a */
             lastRunId: string | null;
             /** @example First of the month */
             name: string;
-            /** @example 2026-11-01T07:00:00.000Z */
+            /**
+             * Format: date-time
+             * @example 2026-11-01T07:00:00.000Z
+             */
             nextRunAt: string | null;
             /** @example Europe/Berlin */
             timezone: string;
@@ -1650,6 +1857,11 @@ export interface components {
              * @example Europe/Berlin
              */
             timezone?: string;
+        };
+        SchedulePage: {
+            items: components["schemas"]["Schedule"][];
+            /** @description Pass as ?cursor= to fetch the next page. */
+            nextCursor: string | null;
         };
         SchedulePatch: {
             /**
@@ -1686,11 +1898,14 @@ export interface components {
              * @enum {string}
              */
             approvalPolicy: "none" | "agents" | "always";
-            /** @example 2026-08-19T12:00:00.000Z */
+            /**
+             * Format: date-time
+             * @example 2026-08-19T12:00:00.000Z
+             */
             createdAt: string;
             /** @example Unlocks a customer's account after too many failed sign-ins. */
             description: string;
-            /** @example scr_3f0c… */
+            /** @example scr_6a7e78ca-5ef5-4c68-80cb-09aec047f7a3 */
             id: string;
             /**
              * @description The published version's input schema, which says what a run takes. It's null until a version is published.
@@ -1713,7 +1928,7 @@ export interface components {
             name: string;
             /**
              * @description The script owner's user id.
-             * @example TOlQmSLQpmFUqPNrBPChDbAfJEIpvKGo
+             * @example usr_1e21afeb-a999-46d6-8874-ae1c97c88418
              */
             ownerUserId: string | null;
             /**
@@ -1721,6 +1936,14 @@ export interface components {
              * @example 3
              */
             publishedVersion: number | null;
+            /**
+             * @description The settings the latest version's reminix.json sets. You can't change these with `PATCH /v1/scripts/{slug}` or in the app. Change them in reminix.json and publish again.
+             * @example [
+             *       "name",
+             *       "tags"
+             *     ]
+             */
+            setInFile: ("name" | "description" | "tags")[];
             /** @example unlock-account */
             slug: string;
             stats: components["schemas"]["ScriptStats"];
@@ -1741,7 +1964,10 @@ export interface components {
              * @example []
              */
             teamIds: string[];
-            /** @example 2026-09-30T10:02:00.000Z */
+            /**
+             * Format: date-time
+             * @example 2026-09-30T10:02:00.000Z
+             */
             updatedAt: string;
         };
         ScriptDetail: components["schemas"]["Script"] & {
@@ -1757,12 +1983,12 @@ export interface components {
                  * @description Up to 10 people who ran the script most in the last 30 days, with how many runs each started.
                  * @example [
                  *       {
-                 *         "userId": "Vb2KqW8nRx4LmT6pYc9HsJ3dFg7Na1Ue",
+                 *         "userId": "usr_276b6c46-92e7-4d47-89c1-2ada515bc3e4",
                  *         "name": "Ana Lopez",
                  *         "runs": 18
                  *       },
                  *       {
-                 *         "userId": "TOlQmSLQpmFUqPNrBPChDbAfJEIpvKGo",
+                 *         "userId": "usr_1e21afeb-a999-46d6-8874-ae1c97c88418",
                  *         "name": "Casey Customer",
                  *         "runs": 9
                  *       }
@@ -1875,18 +2101,21 @@ export interface components {
             publishNeedsSecondPerson?: boolean;
         };
         ScriptStats: {
-            /** @example 2026-10-02T14:05:00.000Z */
+            /**
+             * Format: date-time
+             * @example 2026-10-02T14:05:00.000Z
+             */
             lastRunAt: string | null;
             /**
              * @description How many different people ran the script in the last 30 days.
              * @example 6
              */
-            people30d: number;
+            peopleLast30Days: number;
             /**
              * @description Runs in the last 30 days.
              * @example 42
              */
-            runs30d: number;
+            runsLast30Days: number;
             /**
              * @description The share of finished runs in the last 30 days that succeeded, from 0 to 1.
              * @example 0.95
@@ -1917,7 +2146,10 @@ export interface components {
              * @example python unlock.py {email}
              */
             command: string;
-            /** @example 2026-09-30T10:01:00.000Z */
+            /**
+             * Format: date-time
+             * @example 2026-09-30T10:01:00.000Z
+             */
             createdAt: string;
             /**
              * @description Secrets the code reads as environment variables. Each one must allow it with `allowEnvVar`.
@@ -1931,7 +2163,7 @@ export interface components {
              *     ]
              */
             hosts: string[];
-            /** @example ver_9d2e… */
+            /** @example ver_a100a559-a087-4830-8f43-2d8195030d1e */
             id: string;
             /**
              * @description A JSON Schema document.
@@ -1974,7 +2206,10 @@ export interface components {
              * @example true
              */
             published: boolean;
-            /** @example 2026-09-30T10:02:00.000Z */
+            /**
+             * Format: date-time
+             * @example 2026-09-30T10:02:00.000Z
+             */
             publishedAt: string | null;
             /**
              * @description The secrets Reminix attaches to the code's requests, by name. The code itself never sees them.
@@ -2027,7 +2262,7 @@ export interface components {
              *     ]
              */
             hosts?: string[];
-            /** @description The inputs, as JSON Schema. If you leave it out, each `{name}` in the command becomes a required text input, or an optional one inside `[ … ]`. */
+            /** @description The inputs, as JSON Schema. If you leave it out, each `{name}` in the command becomes a required text input, or an optional one inside `[ … ]`. A text input with `"format": "multiline"` gets a box of several lines in the run form. */
             inputSchema?: {
                 [key: string]: unknown;
             };
@@ -2083,9 +2318,14 @@ export interface components {
              */
             via?: "cli" | "api" | "app";
         };
+        ScriptVersionPage: {
+            items: components["schemas"]["ScriptVersion"][];
+            /** @description Pass as ?cursor= to fetch the next page. */
+            nextCursor: string | null;
+        };
         /**
          * @example {
-         *       "id": "ver_9d2e…",
+         *       "id": "ver_a100a559-a087-4830-8f43-2d8195030d1e",
          *       "version": 3,
          *       "command": "python unlock.py {email}",
          *       "install": null,
@@ -2129,12 +2369,12 @@ export interface components {
             approval?: {
                 /**
                  * @description Where a person approves or denies the request in the app.
-                 * @example https://app.reminix.com/approvals/apr_7c2e…
+                 * @example https://app.reminix.com/approvals/apr_f86a697c-e037-4ee6-828d-22a13c595b02
                  */
                 approveUrl: string;
                 /**
                  * @description The approval request's id.
-                 * @example apr_7c2e…
+                 * @example apr_f86a697c-e037-4ee6-828d-22a13c595b02
                  */
                 id: string;
             };
@@ -2145,13 +2385,19 @@ export interface components {
              * @example false
              */
             allowEnvVar: boolean;
-            /** @example 2026-08-20T09:05:00.000Z */
+            /**
+             * Format: date-time
+             * @example 2026-08-20T09:05:00.000Z
+             */
             createdAt: string;
-            /** @example TOlQmSLQpmFUqPNrBPChDbAfJEIpvKGo */
+            /** @example usr_1e21afeb-a999-46d6-8874-ae1c97c88418 */
             createdByUserId: string | null;
             /** @example ADMIN_KEY */
             name: string;
-            /** @example 2026-08-20T09:06:00.000Z */
+            /**
+             * Format: date-time
+             * @example 2026-08-20T09:06:00.000Z
+             */
             updatedAt: string;
             /**
              * @description One entry for each environment that has a value, without the value itself. A run that uses the secret fails in an environment with no value.
@@ -2161,7 +2407,7 @@ export interface components {
              *         "hosts": [
              *           "api.yourapp.com"
              *         ],
-             *         "createdByUserId": "TOlQmSLQpmFUqPNrBPChDbAfJEIpvKGo",
+             *         "createdByUserId": "usr_1e21afeb-a999-46d6-8874-ae1c97c88418",
              *         "updatedAt": "2026-08-20T09:05:00.000Z",
              *         "lastUsedAt": "2026-10-02T14:05:01.000Z"
              *       },
@@ -2170,7 +2416,7 @@ export interface components {
              *         "hosts": [
              *           "api.staging.yourapp.com"
              *         ],
-             *         "createdByUserId": "TOlQmSLQpmFUqPNrBPChDbAfJEIpvKGo",
+             *         "createdByUserId": "usr_1e21afeb-a999-46d6-8874-ae1c97c88418",
              *         "updatedAt": "2026-08-20T09:06:00.000Z",
              *         "lastUsedAt": null
              *       }
@@ -2178,21 +2424,14 @@ export interface components {
              */
             values: components["schemas"]["SecretValue"][];
         };
-        SecretInput: {
-            /** @description Whether scripts can read the secret as an environment variable. The default is false, so Reminix only attaches it to requests. */
+        SecretPage: {
+            items: components["schemas"]["Secret"][];
+            /** @description Pass as ?cursor= to fetch the next page. */
+            nextCursor: string | null;
+        };
+        SecretPatch: {
+            /** @description Whether scripts can read the secret as an environment variable. A new secret starts with false, so Reminix only attaches it to requests. */
             allowEnvVar?: boolean;
-            /**
-             * @description The only hosts Reminix sends this value to, such as `api.stripe.com`.
-             * @example [
-             *       "api.yourapp.com"
-             *     ]
-             */
-            hosts: string[];
-            /**
-             * @description The secret itself, at most 16,384 bytes.
-             * @example ak_live_…
-             */
-            value: string;
         };
         SecretUse: {
             /**
@@ -2233,7 +2472,7 @@ export interface components {
             hosts?: string[];
         };
         SecretValue: {
-            /** @example TOlQmSLQpmFUqPNrBPChDbAfJEIpvKGo */
+            /** @example usr_1e21afeb-a999-46d6-8874-ae1c97c88418 */
             createdByUserId: string | null;
             /** @example production */
             environment: string;
@@ -2244,10 +2483,30 @@ export interface components {
              *     ]
              */
             hosts: string[];
-            /** @example 2026-10-02T14:05:01.000Z */
+            /**
+             * Format: date-time
+             * @example 2026-10-02T14:05:01.000Z
+             */
             lastUsedAt: string | null;
-            /** @example 2026-08-20T09:05:00.000Z */
+            /**
+             * Format: date-time
+             * @example 2026-08-20T09:05:00.000Z
+             */
             updatedAt: string;
+        };
+        SecretValueInput: {
+            /**
+             * @description The only hosts Reminix sends this value to, such as `api.stripe.com`.
+             * @example [
+             *       "api.yourapp.com"
+             *     ]
+             */
+            hosts: string[];
+            /**
+             * @description The secret itself, at most 16,384 bytes.
+             * @example ak_live_…
+             */
+            value: string;
         };
         StartedBy: {
             /** @description The credential the run was started with, under the name it had then. It's null for a run started in the app. */
@@ -2257,8 +2516,9 @@ export interface components {
                 /**
                  * @description `api_key`, `pat`, or `oauth_client` (an agent, through MCP).
                  * @example pat
+                 * @enum {string}
                  */
-                type: string;
+                type: "api_key" | "pat" | "oauth_client";
             } | null;
             /**
              * @description The person's name, or null if they haven't set one.
@@ -2267,14 +2527,17 @@ export interface components {
             name: string | null;
             /**
              * @description The person who started the run. It's null for a workspace API key.
-             * @example Vb2KqW8nRx4LmT6pYc9HsJ3dFg7Na1Ue
+             * @example usr_276b6c46-92e7-4d47-89c1-2ada515bc3e4
              */
             userId: string | null;
         };
         Team: {
-            /** @example 2026-08-19T12:00:00.000Z */
+            /**
+             * Format: date-time
+             * @example 2026-08-19T12:00:00.000Z
+             */
             createdAt: string;
-            /** @example 5cfbfbdc-bd74-4b1b-aacf-cc18a0ab960e */
+            /** @example team_5cfbfbdc-bd74-4b1b-aacf-cc18a0ab960e */
             id: string;
             /**
              * @description Whether this is the default team. Every member except a guest belongs to it.
@@ -2284,7 +2547,7 @@ export interface components {
             /**
              * @description The user ids of the team's members.
              * @example [
-             *       "TOlQmSLQpmFUqPNrBPChDbAfJEIpvKGo"
+             *       "usr_4f8a2c1e-7b3d-4e9f-a6c5-2d1b0e9f8a7c"
              *     ]
              */
             memberIds: string[];
@@ -2297,7 +2560,7 @@ export interface components {
             nextCursor: string | null;
         };
         Trigger: {
-            /** @example TOlQmSLQpmFUqPNrBPChDbAfJEIpvKGo */
+            /** @example usr_1e21afeb-a999-46d6-8874-ae1c97c88418 */
             createdByUserId: string | null;
             /**
              * @description Why Reminix disabled the trigger, such as its creator losing access to the script.
@@ -2325,7 +2588,7 @@ export interface components {
             filter: {
                 [key: string]: unknown;
             } | null;
-            /** @example trg_6e4a… */
+            /** @example trg_6a2e4a00-bdcf-4035-85b7-544eab30f470 */
             id: string;
             /**
              * @description A webhook trigger's input mode: `fixed` (the saved inputs), `call` (the body's fields) or `request` (the whole request as the `request` input). Null for an event trigger.
@@ -2343,7 +2606,10 @@ export interface components {
             inputs: {
                 [key: string]: unknown;
             };
-            /** @example 2026-10-05T02:10:00.000Z */
+            /**
+             * Format: date-time
+             * @example 2026-10-05T02:10:00.000Z
+             */
             lastRunAt: string | null;
             /**
              * @description A webhook trigger's saved inputs that a call can't change. Null for an event trigger.
@@ -2366,14 +2632,17 @@ export interface components {
             type: "event" | "webhook";
         };
         TriggerCall: {
-            /** @example tcl_91b2… */
+            /** @example tcl_8be3e70e-a2a4-495d-8c96-d7e82db0e2e2 */
             id: string;
             /**
              * @description Why the call was refused.
              * @example null
              */
             reason: string | null;
-            /** @example 2026-11-12T09:12:04.000Z */
+            /**
+             * Format: date-time
+             * @example 2026-11-12T09:12:04.000Z
+             */
             receivedAt: string;
             /**
              * @description `started` a run, a `duplicate` of a call already answered, or `refused`.
@@ -2381,10 +2650,20 @@ export interface components {
              * @enum {string}
              */
             result: "started" | "duplicate" | "refused";
-            /** @example run_2a6f… */
+            /** @example run_a381c8e3-9778-494f-84a4-7529ebd8009a */
             runId: string | null;
         };
+        TriggerCallPage: {
+            items: components["schemas"]["TriggerCall"][];
+            /** @description Pass as ?cursor= to fetch the next page. */
+            nextCursor: string | null;
+        };
         TriggerInput: components["schemas"]["EventTriggerInput"] | components["schemas"]["WebhookTriggerInput"];
+        TriggerPage: {
+            items: components["schemas"]["Trigger"][];
+            /** @description Pass as ?cursor= to fetch the next page. */
+            nextCursor: string | null;
+        };
         TriggerPatch: {
             /** @description Whether the trigger starts runs. With `false`, it's disabled. */
             enabled?: boolean;
@@ -2434,64 +2713,81 @@ export interface components {
             secret?: string;
             /**
              * @description A webhook trigger's URL, with its secret, returned only when it is created or rotated.
-             * @example https://api.reminix.com/webhooks/trg_6e4a…/q8Vd3…
+             * @example https://api.reminix.com/webhooks/trg_6a2e4a00-bdcf-4035-85b7-544eab30f470/q8Vd3…
              */
             url?: string;
         };
         UserMe: {
             /** @example casey@example.com */
             email: string;
-            /** @example TOlQmSLQpmFUqPNrBPChDbAfJEIpvKGo */
+            /** @example usr_4f8a2c1e-7b3d-4e9f-a6c5-2d1b0e9f8a7c */
             id: string;
             /** @example Casey Customer */
             name: string;
-            workspaces: {
-                /** @example 9418b705-3720-48ca-b2bf-f726d1456684 */
-                id: string;
-                /** @example Acme Inc. */
-                name: string;
-                /** @example owner */
-                role: string;
-                /** @example acme */
-                slug: string;
-            }[];
+            workspaces: components["schemas"]["UserMembership"][];
+        };
+        UserMembership: {
+            /** @example ws_9418b705-3720-48ca-b2bf-f726d1456684 */
+            id: string;
+            /** @example Acme Inc. */
+            name: string;
+            /**
+             * @example owner
+             * @enum {string}
+             */
+            role: "owner" | "admin" | "member" | "guest";
+            /** @example acme */
+            slug: string;
         };
         WebhookDelivery: {
             /** @example 1 */
             attempts: number;
-            /** @example 2026-08-19T12:05:00.000Z */
+            /**
+             * Format: date-time
+             * @example 2026-08-19T12:05:00.000Z
+             */
             createdAt: string;
-            /** @example evt_51c2… */
+            /** @example evt_51c2d3e4-f5a6-4b7c-8d9e-0f1a2b3c4d5e */
             eventId: string;
             /** @example workspace.member.joined */
             eventType: string;
-            /** @example del_8a1b… */
+            /** @example del_8a1b2c3d-4e5f-4a6b-9c7d-8e9f0a1b2c3d */
             id: string;
-            /** @example 2026-08-19T12:05:00.000Z */
-            lastAttemptAt: string | null;
-            /** @example 200 */
-            lastStatus: number | null;
             /**
-             * @description `pending`, `delivered` or `failed`.
-             * @example delivered
+             * Format: date-time
+             * @example 2026-08-19T12:05:00.000Z
              */
-            status: string;
+            lastAttemptAt: string | null;
+            /**
+             * @description The HTTP status code of the last attempt. Null before the first attempt, or when it got no response.
+             * @example 200
+             */
+            lastHttpStatus: number | null;
+            /**
+             * @description The delivery's state. `pending` is waiting or retrying, `delivered` reached the endpoint, and `failed` gave up.
+             * @example delivered
+             * @enum {string}
+             */
+            status: "pending" | "delivered" | "failed";
         };
         WebhookDeliveryOutcome: {
-            /** @example del_8a1b… */
+            /** @example del_8a1b2c3d-4e5f-4a6b-9c7d-8e9f0a1b2c3d */
             deliveryId: string;
+            /**
+             * @description For a delivery attempted immediately, the HTTP status code the endpoint answered with. Null when it got no response.
+             * @example 200
+             */
+            httpStatus?: number | null;
             /**
              * @description For a delivery attempted immediately, whether the endpoint accepted it.
              * @example true
              */
             ok?: boolean;
             /**
-             * @description True when the delivery went to the queue, with retries. False when it was attempted immediately.
+             * @description True when the delivery went to the queue, with retries (the response is a 202). False when it was attempted immediately (a 200).
              * @example false
              */
             queued: boolean;
-            /** @example 200 */
-            status?: number | null;
         };
         WebhookDeliveryPage: {
             items: components["schemas"]["WebhookDelivery"][];
@@ -2501,7 +2797,10 @@ export interface components {
         WebhookEndpoint: {
             /** @example 0 */
             consecutiveFailures: number;
-            /** @example 2026-08-19T12:00:00.000Z */
+            /**
+             * Format: date-time
+             * @example 2026-08-19T12:00:00.000Z
+             */
             createdAt: string;
             /** @example Order sync */
             description: string | null;
@@ -2522,19 +2821,25 @@ export interface components {
              *     ]
              */
             eventTypes: string[] | null;
-            /** @example we_3f0c… */
+            /** @example we_3f0c1a2e-4b5d-4c6e-8f70-1a2b3c4d5e6f */
             id: string;
-            /** @example 2026-08-19T12:05:00.000Z */
+            /**
+             * Format: date-time
+             * @example 2026-08-19T12:05:00.000Z
+             */
             lastAttemptAt: string | null;
-            /** @example 200 */
-            lastStatus: number | null;
+            /**
+             * @description The HTTP status code the endpoint answered the last delivery with. Null before the first delivery, or when the last one got no response.
+             * @example 200
+             */
+            lastHttpStatus: number | null;
+            /**
+             * @description The endpoint's signing secret. Only the response that creates the endpoint has it, so store it then to verify deliveries.
+             * @example whsec_MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw
+             */
+            secret?: string;
             /** @example https://example.com/hooks */
             url: string;
-        };
-        WebhookEndpointCreated: {
-            endpoint: components["schemas"]["WebhookEndpoint"];
-            /** @example whsec_… */
-            secret: string;
         };
         WebhookEndpointPage: {
             items: components["schemas"]["WebhookEndpoint"][];
@@ -2589,67 +2894,20 @@ export interface components {
             type: "webhook";
         };
         Workspace: {
-            /** @example 9418b705-3720-48ca-b2bf-f726d1456684 */
+            /**
+             * Format: date-time
+             * @example 2026-08-19T12:00:00.000Z
+             */
+            createdAt: string;
+            /** @example ws_9418b705-3720-48ca-b2bf-f726d1456684 */
             id: string;
             /** @example Acme Inc. */
             name: string;
-        };
-        WorkspaceUsage: {
-            counts: {
-                /** @example Webhook deliveries this period */
-                description: string;
-                /** @example webhook_deliveries */
-                id: string;
-                /**
-                 * @description The count's name, as the app shows it.
-                 * @example Webhook deliveries
-                 */
-                label: string;
-                /**
-                 * @description The limit for this period. Null means unlimited. Zero means your plan includes none.
-                 * @example 10000
-                 */
-                limit: number | null;
-                /**
-                 * @description Where the count stands. `within` is under the limit. `grace` is past the limit, still running until `stopsAt`. `stopped` means we refuse new use until `periodEnd`. `over` is past the limit of a count we never refuse.
-                 * @example grace
-                 * @enum {string}
-                 */
-                state: "within" | "grace" | "stopped" | "over";
-                /**
-                 * @description Where we start refusing new use until the period resets. It equals `limit` when the count stops at its limit. It is higher when the count keeps running for a while past it. Null means we never refuse it.
-                 * @example 11000
-                 */
-                stopsAt: number | null;
-                /**
-                 * @description The unit of the limit, when the plan names one. Absent otherwise.
-                 * @example per month
-                 */
-                unit?: string;
-                /** @example 10400 */
-                used: number;
-            }[];
             /**
-             * @description Things to know about these numbers, such as some usage being unavailable right now.
-             * @example []
+             * @description The workspace's short name, as in its URLs. A personal access token sends it as `X-Workspace`.
+             * @example acme
              */
-            notices?: string[];
-            /**
-             * @description When the counts reset.
-             * @example 2026-11-17T14:30:00.000Z
-             */
-            periodEnd: string;
-            /**
-             * @description When this period began. Each period starts a month after the last one, counted from the billing date.
-             * @example 2026-10-17T14:30:00.000Z
-             */
-            periodStart: string;
-            /**
-             * @description Where the workspace stands, from its most limited count. The order from worst is `stopped`, `grace`, `over`, then `within`.
-             * @example grace
-             * @enum {string}
-             */
-            state: "within" | "grace" | "stopped" | "over";
+            slug: string;
         };
     };
     responses: never;
@@ -2662,7 +2920,12 @@ export type $defs = Record<string, never>;
 export interface operations {
     "environments.list": {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Opaque token from a previous page's nextCursor. */
+                cursor?: string;
+                /** @description Items per page, 1–100 (default 25). */
+                limit?: number;
+            };
             header?: {
                 /** @description The environment the request acts in. Without it, the request uses the product's default environment. An API key bound to an environment always acts in that environment, and naming another one fails with 403. An unknown environment fails with 400. */
                 "x-environment"?: string;
@@ -2674,15 +2937,22 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description The environments. */
+            /** @description One page of environments. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        items: components["schemas"]["Environment"][];
-                    };
+                    "application/json": components["schemas"]["EnvironmentPage"];
+                };
+            };
+            /** @description Malformed cursor or query (code: invalid_request). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
             /** @description The API key or personal access token is missing, malformed or invalid (code: unauthorized). A revoked or expired one gets the same error. */
@@ -2735,6 +3005,8 @@ export interface operations {
             /** @description The environment. */
             201: {
                 headers: {
+                    /** @description The path of the new resource, under `/v1`. */
+                    Location: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -2779,6 +3051,15 @@ export interface operations {
             };
             /** @description No such environment in this workspace (code: not_found). */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Another environment already has this name (code: conflict). */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -3013,6 +3294,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
+            /** @description Another environment already has this name (code: conflict). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
             /** @description Too many requests (code: rate_limited). The limit is 100 requests a minute for each API key, personal access token or agent sign-in. Retry after the number of seconds in the Retry-After header. */
             429: {
                 headers: {
@@ -3131,6 +3421,8 @@ export interface operations {
             /** @description The uploaded file. */
             201: {
                 headers: {
+                    /** @description The path of the new resource, under `/v1`. */
+                    Location: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -3256,7 +3548,7 @@ export interface operations {
             };
         };
     };
-    "files.download": {
+    "files.content": {
         parameters: {
             query?: never;
             header?: {
@@ -3488,7 +3780,7 @@ export interface operations {
                     "application/json": components["schemas"]["Run"];
                 };
             };
-            /** @description The run isn't a long run, or it has already finished (code: invalid_request). */
+            /** @description The run isn't a long run (code: invalid_request). */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -3517,6 +3809,15 @@ export interface operations {
             };
             /** @description No such script or run in this workspace (code: not_found). */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The run has already ended (code: conflict). */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -3812,6 +4113,8 @@ export interface operations {
             /** @description The new script. */
             201: {
                 headers: {
+                    /** @description The path of the new resource, under `/v1`. */
+                    Location: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -3838,6 +4141,15 @@ export interface operations {
             };
             /** @description The credential can't make this request (code: forbidden). An API key or token without this route's scope gets this error. So does a personal access token that lacks the workspace role the route requires, or that can't act in the named workspace. A token can't act in a workspace whose slug is unknown, that its user isn't a member of, or that its scopes exclude. */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A script already has this slug (code: conflict). */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -3986,6 +4298,15 @@ export interface operations {
             };
             /** @description No such script or version in this workspace (code: not_found). */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description A field the request changes is set in the script's reminix.json (code: conflict). */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -4168,16 +4489,18 @@ export interface operations {
             };
         };
         responses: {
-            /** @description The finished run, which succeeded or failed. */
-            200: {
+            /** @description The finished run, which succeeded or failed. `Location` is its address. */
+            201: {
                 headers: {
+                    /** @description The path of the new resource, under `/v1`. */
+                    Location: string;
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["Run"];
                 };
             };
-            /** @description The run, returned before it finishes. An `awaiting_approval` run comes with the request to approve. It runs once a person approves it, or ends `cancelled`. A long run comes back `running`. So does a short run still in progress after 60 seconds, because it waited for a machine. Poll the run and its log until it ends. */
+            /** @description The run, returned before it finishes. An `awaiting_approval` run comes with the request to approve. It runs once a person approves it, or ends `cancelled`. A long run comes back `running`. So does a short run still in progress after 60 seconds, because it waited for a machine. Poll the run at its `Location`, and its log, until it ends. */
             202: {
                 headers: {
                     [name: string]: unknown;
@@ -4186,7 +4509,7 @@ export interface operations {
                     "application/json": components["schemas"]["RunAwaitingApproval"];
                 };
             };
-            /** @description The inputs are invalid, the script has no published version, or the script is archived (code: invalid_request). For invalid inputs, `details` has one entry per field. */
+            /** @description The inputs are invalid, or the script has no published version (code: invalid_request). For invalid inputs, `details` has one entry per field. */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -4231,6 +4554,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
+            /** @description The script is archived. Restore it to run it (code: conflict). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
             /** @description More than 100 requests a minute came from one key or token, or the plan's runs at once are all in progress (code: rate_limited). Retry after the time in the Retry-After header. */
             429: {
                 headers: {
@@ -4240,7 +4572,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Runs are unavailable (code: internal_error). */
+            /** @description Runs are unavailable for now. Try again after the time in the Retry-After header (code: unavailable). */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -4253,7 +4585,12 @@ export interface operations {
     };
     "schedules.list": {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Opaque token from a previous page's nextCursor. */
+                cursor?: string;
+                /** @description Items per page, 1–100 (default 25). */
+                limit?: number;
+            };
             header?: {
                 /** @description The environment the request acts in. Without it, the request uses the product's default environment. An API key bound to an environment always acts in that environment, and naming another one fails with 403. An unknown environment fails with 400. */
                 "x-environment"?: string;
@@ -4267,15 +4604,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description The schedules. */
+            /** @description One page of schedules. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        items: components["schemas"]["Schedule"][];
-                    };
+                    "application/json": components["schemas"]["SchedulePage"];
                 };
             };
             /** @description Invalid request (code: invalid_request). */
@@ -4347,6 +4682,81 @@ export interface operations {
         responses: {
             /** @description The schedule. */
             201: {
+                headers: {
+                    /** @description The path of the new resource, under `/v1`. */
+                    Location: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Schedule"];
+                };
+            };
+            /** @description Invalid request (code: invalid_request). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The API key or personal access token is missing, malformed or invalid (code: unauthorized). A revoked or expired one gets the same error. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The credential can't make this request (code: forbidden). An API key or token without this route's scope gets this error. So does a personal access token that lacks the workspace role the route requires, or that can't act in the named workspace. A token can't act in a workspace whose slug is unknown, that its user isn't a member of, or that its scopes exclude. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description No such script, schedule or trigger in this workspace (code: not_found). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests (code: rate_limited). The limit is 100 requests a minute for each API key, personal access token or agent sign-in. Retry after the number of seconds in the Retry-After header. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    "schedules.get": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description The environment the request acts in. Without it, the request uses the product's default environment. An API key bound to an environment always acts in that environment, and naming another one fails with 403. An unknown environment fails with 400. */
+                "x-environment"?: string;
+                /** @description The workspace slug. A personal access token must send it, or the request fails with 400. API keys ignore it. */
+                "x-workspace"?: string;
+            };
+            path: {
+                scheduleId: string;
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The schedule. */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -4551,7 +4961,12 @@ export interface operations {
     };
     "triggers.list": {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Opaque token from a previous page's nextCursor. */
+                cursor?: string;
+                /** @description Items per page, 1–100 (default 25). */
+                limit?: number;
+            };
             header?: {
                 /** @description The environment the request acts in. Without it, the request uses the product's default environment. An API key bound to an environment always acts in that environment, and naming another one fails with 403. An unknown environment fails with 400. */
                 "x-environment"?: string;
@@ -4565,15 +4980,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description The triggers. */
+            /** @description One page of triggers. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        items: components["schemas"]["Trigger"][];
-                    };
+                    "application/json": components["schemas"]["TriggerPage"];
                 };
             };
             /** @description Invalid request (code: invalid_request). */
@@ -4646,10 +5059,85 @@ export interface operations {
             /** @description The trigger. A webhook trigger carries its `url` and `secret`, this once. */
             201: {
                 headers: {
+                    /** @description The path of the new resource, under `/v1`. */
+                    Location: string;
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["TriggerWithSecret"];
+                };
+            };
+            /** @description Invalid request (code: invalid_request). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The API key or personal access token is missing, malformed or invalid (code: unauthorized). A revoked or expired one gets the same error. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The credential can't make this request (code: forbidden). An API key or token without this route's scope gets this error. So does a personal access token that lacks the workspace role the route requires, or that can't act in the named workspace. A token can't act in a workspace whose slug is unknown, that its user isn't a member of, or that its scopes exclude. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description No such script, schedule or trigger in this workspace (code: not_found). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests (code: rate_limited). The limit is 100 requests a minute for each API key, personal access token or agent sign-in. Retry after the number of seconds in the Retry-After header. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    "triggers.get": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description The environment the request acts in. Without it, the request uses the product's default environment. An API key bound to an environment always acts in that environment, and naming another one fails with 403. An unknown environment fails with 400. */
+                "x-environment"?: string;
+                /** @description The workspace slug. A personal access token must send it, or the request fails with 400. API keys ignore it. */
+                "x-workspace"?: string;
+            };
+            path: {
+                slug: string;
+                triggerId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The trigger. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Trigger"];
                 };
             };
             /** @description Invalid request (code: invalid_request). */
@@ -4847,9 +5335,14 @@ export interface operations {
             };
         };
     };
-    "triggers.calls": {
+    "triggerCalls.list": {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Opaque token from a previous page's nextCursor. */
+                cursor?: string;
+                /** @description Items per page, 1–100 (default 25). */
+                limit?: number;
+            };
             header?: {
                 /** @description The environment the request acts in. Without it, the request uses the product's default environment. An API key bound to an environment always acts in that environment, and naming another one fails with 403. An unknown environment fails with 400. */
                 "x-environment"?: string;
@@ -4864,15 +5357,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description The calls. */
+            /** @description One page of calls. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        items: components["schemas"]["TriggerCall"][];
-                    };
+                    "application/json": components["schemas"]["TriggerCallPage"];
                 };
             };
             /** @description Invalid request (code: invalid_request). */
@@ -4997,7 +5488,12 @@ export interface operations {
     };
     "scriptVersions.list": {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Opaque token from a previous page's nextCursor. */
+                cursor?: string;
+                /** @description Items per page, 1–100 (default 25). */
+                limit?: number;
+            };
             header?: {
                 /** @description The environment the request acts in. Without it, the request uses the product's default environment. An API key bound to an environment always acts in that environment, and naming another one fails with 403. An unknown environment fails with 400. */
                 "x-environment"?: string;
@@ -5011,15 +5507,22 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description The versions. */
+            /** @description One page of versions. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        items: components["schemas"]["ScriptVersion"][];
-                    };
+                    "application/json": components["schemas"]["ScriptVersionPage"];
+                };
+            };
+            /** @description Malformed cursor or query (code: invalid_request). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
             /** @description The API key or personal access token is missing, malformed or invalid (code: unauthorized). A revoked or expired one gets the same error. */
@@ -5083,6 +5586,8 @@ export interface operations {
             /** @description The new version: a draft, or published with `publish: true`. */
             201: {
                 headers: {
+                    /** @description The path of the new resource, under `/v1`. */
+                    Location: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -5107,7 +5612,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The plan's limit is reached, such as Free's 1 publisher a month (code: plan_limit_reached). */
+            /** @description The plan's limit is reached, such as Free's 500 runs a month (code: plan_limit_reached). */
             402: {
                 headers: {
                     [name: string]: unknown;
@@ -5143,8 +5648,72 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The runner is unavailable (code: internal_error). */
+            /** @description Uploads are unavailable for now. Try again after the time in the Retry-After header (code: unavailable). */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    "scriptVersions.get": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description The environment the request acts in. Without it, the request uses the product's default environment. An API key bound to an environment always acts in that environment, and naming another one fails with 403. An unknown environment fails with 400. */
+                "x-environment"?: string;
+                /** @description The workspace slug. A personal access token must send it, or the request fails with 400. API keys ignore it. */
+                "x-workspace"?: string;
+            };
+            path: {
+                slug: string;
+                version: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The version. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScriptVersion"];
+                };
+            };
+            /** @description The API key or personal access token is missing, malformed or invalid (code: unauthorized). A revoked or expired one gets the same error. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The credential can't make this request (code: forbidden). An API key or token without this route's scope gets this error. So does a personal access token that lacks the workspace role the route requires, or that can't act in the named workspace. A token can't act in a workspace whose slug is unknown, that its user isn't a member of, or that its scopes exclude. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description No such script or version in this workspace (code: not_found). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests (code: rate_limited). The limit is 100 requests a minute for each API key, personal access token or agent sign-in. Retry after the number of seconds in the Retry-After header. */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -5198,7 +5767,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description The plan's limit is reached, such as Free's 1 publisher a month (code: plan_limit_reached). */
+            /** @description The plan's limit is reached, such as Free's 500 runs a month (code: plan_limit_reached). */
             402: {
                 headers: {
                     [name: string]: unknown;
@@ -5257,16 +5826,18 @@ export interface operations {
             };
         };
         responses: {
-            /** @description The finished run, which succeeded or failed. */
-            200: {
+            /** @description The finished run, which succeeded or failed. `Location` is its address. */
+            201: {
                 headers: {
+                    /** @description The path of the new resource, under `/v1`. */
+                    Location: string;
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["Run"];
                 };
             };
-            /** @description The run, returned before it finishes. An `awaiting_approval` run comes with the request to approve. It runs once a person approves it, or ends `cancelled`. A long run comes back `running`. So does a short run still in progress after 60 seconds, because it waited for a machine. Poll the run and its log until it ends. */
+            /** @description The run, returned before it finishes. An `awaiting_approval` run comes with the request to approve. It runs once a person approves it, or ends `cancelled`. A long run comes back `running`. So does a short run still in progress after 60 seconds, because it waited for a machine. Poll the run at its `Location`, and its log, until it ends. */
             202: {
                 headers: {
                     [name: string]: unknown;
@@ -5275,7 +5846,7 @@ export interface operations {
                     "application/json": components["schemas"]["RunAwaitingApproval"];
                 };
             };
-            /** @description The inputs are invalid, the script has no published version, or the script is archived (code: invalid_request). For invalid inputs, `details` has one entry per field. */
+            /** @description The inputs are invalid, or the script has no published version (code: invalid_request). For invalid inputs, `details` has one entry per field. */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -5320,6 +5891,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
+            /** @description The script is archived. Restore it to run it (code: conflict). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
             /** @description More than 100 requests a minute came from one key or token, or the plan's runs at once are all in progress (code: rate_limited). Retry after the time in the Retry-After header. */
             429: {
                 headers: {
@@ -5329,7 +5909,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Runs are unavailable (code: internal_error). */
+            /** @description Runs are unavailable for now. Try again after the time in the Retry-After header (code: unavailable). */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -5342,7 +5922,12 @@ export interface operations {
     };
     "secrets.list": {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Opaque token from a previous page's nextCursor. */
+                cursor?: string;
+                /** @description Items per page, 1–100 (default 25). */
+                limit?: number;
+            };
             header?: {
                 /** @description The environment the request acts in. Without it, the request uses the product's default environment. An API key bound to an environment always acts in that environment, and naming another one fails with 403. An unknown environment fails with 400. */
                 "x-environment"?: string;
@@ -5354,77 +5939,16 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description The secrets. */
+            /** @description One page of secrets. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        items: components["schemas"]["Secret"][];
-                    };
+                    "application/json": components["schemas"]["SecretPage"];
                 };
             };
-            /** @description The API key or personal access token is missing, malformed or invalid (code: unauthorized). A revoked or expired one gets the same error. */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description The credential can't make this request (code: forbidden). An API key or token without this route's scope gets this error. So does a personal access token that lacks the workspace role the route requires, or that can't act in the named workspace. A token can't act in a workspace whose slug is unknown, that its user isn't a member of, or that its scopes exclude. */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Too many requests (code: rate_limited). The limit is 100 requests a minute for each API key, personal access token or agent sign-in. Retry after the number of seconds in the Retry-After header. */
-            429: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    "secrets.set": {
-        parameters: {
-            query?: never;
-            header?: {
-                /** @description The environment the request acts in. Without it, the request uses the product's default environment. An API key bound to an environment always acts in that environment, and naming another one fails with 403. An unknown environment fails with 400. */
-                "x-environment"?: string;
-                /** @description The workspace slug. A personal access token must send it, or the request fails with 400. API keys ignore it. */
-                "x-workspace"?: string;
-            };
-            path: {
-                /** @description The secret's name, in UPPER_SNAKE_CASE. It starts with a letter and has at most 64 characters. */
-                name: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SecretInput"];
-            };
-        };
-        responses: {
-            /** @description The secret (without its value). */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Secret"];
-                };
-            };
-            /** @description Invalid name, value or hosts (code: invalid_request). */
+            /** @description Malformed cursor or query (code: invalid_request). */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -5460,8 +5984,63 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Secrets are unavailable (code: internal_error). */
-            503: {
+        };
+    };
+    "secrets.get": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description The environment the request acts in. Without it, the request uses the product's default environment. An API key bound to an environment always acts in that environment, and naming another one fails with 403. An unknown environment fails with 400. */
+                "x-environment"?: string;
+                /** @description The workspace slug. A personal access token must send it, or the request fails with 400. API keys ignore it. */
+                "x-workspace"?: string;
+            };
+            path: {
+                /** @description The secret's name, in UPPER_SNAKE_CASE. It starts with a letter and has at most 64 characters. */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The secret. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Secret"];
+                };
+            };
+            /** @description The API key or personal access token is missing, malformed or invalid (code: unauthorized). A revoked or expired one gets the same error. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The credential can't make this request (code: forbidden). An API key or token without this route's scope gets this error. So does a personal access token that lacks the workspace role the route requires, or that can't act in the named workspace. A token can't act in a workspace whose slug is unknown, that its user isn't a member of, or that its scopes exclude. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description No such secret (code: not_found). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests (code: rate_limited). The limit is 100 requests a minute for each API key, personal access token or agent sign-in. Retry after the number of seconds in the Retry-After header. */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -5533,6 +6112,153 @@ export interface operations {
             };
         };
     };
+    "secrets.update": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description The environment the request acts in. Without it, the request uses the product's default environment. An API key bound to an environment always acts in that environment, and naming another one fails with 403. An unknown environment fails with 400. */
+                "x-environment"?: string;
+                /** @description The workspace slug. A personal access token must send it, or the request fails with 400. API keys ignore it. */
+                "x-workspace"?: string;
+            };
+            path: {
+                /** @description The secret's name, in UPPER_SNAKE_CASE. It starts with a letter and has at most 64 characters. */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SecretPatch"];
+            };
+        };
+        responses: {
+            /** @description The secret (without its values). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Secret"];
+                };
+            };
+            /** @description The API key or personal access token is missing, malformed or invalid (code: unauthorized). A revoked or expired one gets the same error. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The credential can't make this request (code: forbidden). An API key or token without this route's scope gets this error. So does a personal access token that lacks the workspace role the route requires, or that can't act in the named workspace. A token can't act in a workspace whose slug is unknown, that its user isn't a member of, or that its scopes exclude. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description No such secret (code: not_found). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests (code: rate_limited). The limit is 100 requests a minute for each API key, personal access token or agent sign-in. Retry after the number of seconds in the Retry-After header. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    "secretValues.set": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description The environment the request acts in. Without it, the request uses the product's default environment. An API key bound to an environment always acts in that environment, and naming another one fails with 403. An unknown environment fails with 400. */
+                "x-environment"?: string;
+                /** @description The workspace slug. A personal access token must send it, or the request fails with 400. API keys ignore it. */
+                "x-workspace"?: string;
+            };
+            path: {
+                /** @description The environment's name. */
+                environment: string;
+                /** @description The secret's name, in UPPER_SNAKE_CASE. It starts with a letter and has at most 64 characters. */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SecretValueInput"];
+            };
+        };
+        responses: {
+            /** @description The secret (without its value). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Secret"];
+                };
+            };
+            /** @description Invalid name, value or hosts, or no such environment (code: invalid_request). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The API key or personal access token is missing, malformed or invalid (code: unauthorized). A revoked or expired one gets the same error. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The credential can't make this request (code: forbidden). An API key or token without this route's scope gets this error. So does a personal access token that lacks the workspace role the route requires, or that can't act in the named workspace. A token can't act in a workspace whose slug is unknown, that its user isn't a member of, or that its scopes exclude. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests (code: rate_limited). The limit is 100 requests a minute for each API key, personal access token or agent sign-in. Retry after the number of seconds in the Retry-After header. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Secrets are unavailable for now. Try again after the time in the Retry-After header (code: unavailable). */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     "secretValues.delete": {
         parameters: {
             query?: never;
@@ -5543,6 +6269,7 @@ export interface operations {
                 "x-workspace"?: string;
             };
             path: {
+                /** @description The environment's name. */
                 environment: string;
                 /** @description The secret's name, in UPPER_SNAKE_CASE. It starts with a letter and has at most 64 characters. */
                 name: string;
@@ -5787,38 +6514,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        items: {
-                            /**
-                             * @example [
-                             *       "owner"
-                             *     ]
-                             */
-                            approverRoles: string[];
-                            /** @example true */
-                            createsSecret: boolean;
-                            /** @example workspace.apiKey.create */
-                            id: string;
-                            /**
-                             * @example {
-                             *       "type": "object",
-                             *       "properties": {
-                             *         "name": {
-                             *           "type": "string"
-                             *         }
-                             *       },
-                             *       "required": [
-                             *         "name"
-                             *       ]
-                             *     }
-                             */
-                            input: {
-                                [key: string]: unknown;
-                            };
-                            /** @example Create an API key */
-                            title: string;
-                        }[];
-                    };
+                    "application/json": components["schemas"]["ApprovalActionPage"];
                 };
             };
             /** @description The API key or personal access token is missing, malformed or invalid (code: unauthorized). A revoked or expired one gets the same error. */
@@ -5894,6 +6590,8 @@ export interface operations {
             /** @description The new request, waiting for a person to decide. */
             201: {
                 headers: {
+                    /** @description The path of the new resource, under `/v1`. */
+                    Location: string;
                     [name: string]: unknown;
                 };
                 content: {
@@ -5948,8 +6646,8 @@ export interface operations {
                 "x-workspace"?: string;
             };
             path: {
-                /** @description The request's id. */
-                requestId: string;
+                /** @description The approval request's id. */
+                approvalRequestId: string;
             };
             cookie?: never;
         };
@@ -6012,8 +6710,8 @@ export interface operations {
                 "x-workspace"?: string;
             };
             path: {
-                /** @description The request's id. */
-                requestId: string;
+                /** @description The approval request's id. */
+                approvalRequestId: string;
             };
             cookie?: never;
         };
@@ -6025,16 +6723,10 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        /** @example REMINIX_API_KEY */
-                        envVar: string | null;
-                        request: components["schemas"]["ApprovalRequest"];
-                        /** @example sk_reminix_… */
-                        secret: string | null;
-                    };
+                    "application/json": components["schemas"]["ApprovalRedemption"];
                 };
             };
-            /** @description The request isn't approved, was already redeemed or has expired (code: invalid_request). */
+            /** @description The action itself failed when it ran, and the request is now `failed` (code: invalid_request). */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -6063,6 +6755,15 @@ export interface operations {
             };
             /** @description The request isn't yours (code: not_found). */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request isn't approved, was already redeemed or has expired (code: conflict). */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -6173,14 +6874,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        items: {
-                            /** @example A person joined the workspace, by accepting an invitation or being added. `data.userId` says who. */
-                            description: string;
-                            /** @example workspace.member.joined */
-                            type: string;
-                        }[];
-                    };
+                    "application/json": components["schemas"]["EventTypePage"];
                 };
             };
             /** @description The API key or personal access token is missing, malformed or invalid (code: unauthorized). A revoked or expired one gets the same error. */
@@ -6344,6 +7038,58 @@ export interface operations {
             };
         };
     };
+    "workspace.planUsage.get": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description The environment the request acts in. Without it, the request uses the product's default environment. An API key bound to an environment always acts in that environment, and naming another one fails with 403. An unknown environment fails with 400. */
+                "x-environment"?: string;
+                /** @description The workspace slug. A personal access token must send it, or the request fails with 400. API keys ignore it. */
+                "x-workspace"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description This period's usage. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanUsage"];
+                };
+            };
+            /** @description The API key or personal access token is missing, malformed or invalid (code: unauthorized). A revoked or expired one gets the same error. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The credential can't make this request (code: forbidden). An API key or token without this route's scope gets this error. So does a personal access token that lacks the workspace role the route requires, or that can't act in the named workspace. A token can't act in a workspace whose slug is unknown, that its user isn't a member of, or that its scopes exclude. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Too many requests (code: rate_limited). The limit is 100 requests a minute for each API key, personal access token or agent sign-in. Retry after the number of seconds in the Retry-After header. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     "workspace.teams.list": {
         parameters: {
             query?: {
@@ -6379,58 +7125,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description The API key or personal access token is missing, malformed or invalid (code: unauthorized). A revoked or expired one gets the same error. */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description The credential can't make this request (code: forbidden). An API key or token without this route's scope gets this error. So does a personal access token that lacks the workspace role the route requires, or that can't act in the named workspace. A token can't act in a workspace whose slug is unknown, that its user isn't a member of, or that its scopes exclude. */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Too many requests (code: rate_limited). The limit is 100 requests a minute for each API key, personal access token or agent sign-in. Retry after the number of seconds in the Retry-After header. */
-            429: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    "workspace.usage": {
-        parameters: {
-            query?: never;
-            header?: {
-                /** @description The environment the request acts in. Without it, the request uses the product's default environment. An API key bound to an environment always acts in that environment, and naming another one fails with 403. An unknown environment fails with 400. */
-                "x-environment"?: string;
-                /** @description The workspace slug. A personal access token must send it, or the request fails with 400. API keys ignore it. */
-                "x-workspace"?: string;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description This period's usage. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["WorkspaceUsage"];
                 };
             };
             /** @description The API key or personal access token is missing, malformed or invalid (code: unauthorized). A revoked or expired one gets the same error. */
@@ -6547,13 +7241,15 @@ export interface operations {
             };
         };
         responses: {
-            /** @description The endpoint and its signing secret. You see the secret only once. */
+            /** @description The new endpoint, with its signing secret in `secret`. You see the secret only once. */
             201: {
                 headers: {
+                    /** @description The path of the new resource, under `/v1`. */
+                    Location: string;
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["WebhookEndpointCreated"];
+                    "application/json": components["schemas"]["WebhookEndpoint"];
                 };
             };
             /** @description Invalid request (code: invalid_request). */
@@ -6907,8 +7603,8 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description The redelivery was sent or queued. */
-            202: {
+            /** @description We attempted the redelivery. `ok` and `httpStatus` say how the endpoint answered. */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -6916,13 +7612,13 @@ export interface operations {
                     "application/json": components["schemas"]["WebhookDeliveryOutcome"];
                 };
             };
-            /** @description Invalid request (code: invalid_request). */
-            400: {
+            /** @description The redelivery is queued. */
+            202: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
+                    "application/json": components["schemas"]["WebhookDeliveryOutcome"];
                 };
             };
             /** @description The API key or personal access token is missing, malformed or invalid (code: unauthorized). A revoked or expired one gets the same error. */
@@ -6945,6 +7641,15 @@ export interface operations {
             };
             /** @description The endpoint or delivery isn't in this workspace (code: not_found). */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The endpoint is disabled (code: conflict). Re-enable it, then redeliver. */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -7042,7 +7747,16 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description The test delivery was sent or queued. */
+            /** @description We attempted the test delivery. `ok` and `httpStatus` say how the endpoint answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WebhookDeliveryOutcome"];
+                };
+            };
+            /** @description The test delivery is queued. */
             202: {
                 headers: {
                     [name: string]: unknown;

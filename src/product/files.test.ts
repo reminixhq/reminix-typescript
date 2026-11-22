@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { ApiError, createClient } from "../index.ts";
+import { APIError, createClient } from "../index.ts";
 import { uploadFile } from "./index.ts";
 
 describe("uploadFile", () => {
@@ -8,7 +8,7 @@ describe("uploadFile", () => {
     const requests: Request[] = [];
     const api = createClient({
       token: "sk_x",
-      api: "https://api.example.test",
+      baseURL: "https://api.example.test",
       fetch: async (request) => {
         requests.push(request);
         return Response.json(
@@ -41,6 +41,6 @@ describe("uploadFile", () => {
     });
     await expect(
       uploadFile(api, { name: "x", data: new Uint8Array() }),
-    ).rejects.toBeInstanceOf(ApiError);
+    ).rejects.toBeInstanceOf(APIError);
   });
 });

@@ -42,6 +42,20 @@ const post = (init: RequestInit = {}) =>
   });
 
 describe("withRetries", () => {
+  it("stops waiting between attempts the moment the call's signal aborts", async () => {
+    const { fetch, sent } = scripted([json(503, {}), json(201, {})]);
+    const controller = new AbortController();
+    const sleep = (ms: number) => {
+      controller.abort(new DOMException("deadline", "TimeoutError"));
+      return new Promise<void>((done) => setTimeout(done, ms));
+    };
+    const failure = await withRetries(fetch, { sleep })(
+      post({ signal: controller.signal }),
+    ).catch((error: unknown) => error);
+    expect(failure).toMatchObject({ name: "TimeoutError" });
+    expect(sent).toHaveLength(1);
+  });
+
   it("retries a write with the SAME key, sending the body each time", async () => {
     const { fetch, sent } = scripted([
       json(503, {}),
@@ -81,6 +95,8 @@ describe("withRetries", () => {
   it("follows Retry-After, and hands back one too long to sleep through", async () => {
     const waits: number[] = [];
     const sleep = async (ms: number) => void waits.push(ms);
+    // Up to 60 s (owner, 2026-11-22): the API's rate limits say the real wait.
+    expect(MAX_WAIT_MS).toBe(60_000);
     const ok = scripted([json(429, {}, { "retry-after": "3" }), json(200, {})]);
     await withRetries(ok.fetch, { sleep })(post());
     expect(waits).toEqual([3000]);
