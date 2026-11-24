@@ -2,9 +2,9 @@
 
 The Reminix TypeScript SDK runs your team's published scripts from your code: one call starts a run, waits for it however long it takes, handles approvals and files, and gives you the result. Every API operation is a typed method too.
 
-[![A script published with reminix publish becomes a tool: Jordan asks Claude for a refund, Sam approves it in Reminix, and the refund goes out.](https://media.reminix.com/launch/readme-20261117-1555.gif)](https://reminix.com/#demo)
+[![A script published with reminix publish becomes a tool: Jordan asks Claude for a refund, Sam approves it in Reminix, and the refund goes out.](https://media.reminix.com/launch/readme-20261124-1518.gif)](https://reminix.com/#demo)
 
-[▶ Watch the 1-minute demo](https://reminix.com/#demo)
+[▶ Watch the 53-second demo](https://reminix.com/#demo)
 
 Reminix turns your scripts into internal tools. Upload a Python, shell or Node script, and Reminix runs it from a form, the API, the CLI or your AI agents, on a schedule or from a webhook. Keys stay out of the code, and every run is on record.
 
